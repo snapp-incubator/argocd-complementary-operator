@@ -141,7 +141,6 @@ func (r *TeamReconciler)setRBACArgoCDUser(ctx context.Context, req ctrl.Request)
 	team := &teamv1.Team{}
 	found := &corev1.ConfigMap{}
 	err := r.Client.Get(ctx, types.NamespacedName{Name: "argocd-cm", Namespace: "argocd"}, found)
-
 	if err != nil {
 		log.Error(err, "Failed to get  cm")
 		return ctrl.Result{}, err
@@ -156,7 +155,6 @@ func (r *TeamReconciler)setRBACArgoCDUser(ctx context.Context, req ctrl.Request)
 	  newPolicy :="g," +team.Spec.Argo.Tokens.ArgocdUser+"-admin,role: " +req.Name+"-admin"
 	  log.Info(newPolicy)
 	  policies = append(policies, newPolicy)
-
 
 	}
 // 	rbac := map[string]map[string]string{
