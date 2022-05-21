@@ -29,9 +29,6 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"encoding/json"
 	b64 "encoding/base64"
-	"bytes"
-	"io/ioutil"
-	"net/http"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -83,5 +80,69 @@ func (r *TeamReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		log.Info("team is found and teamAdmin is : " + team.Spec.TeamAdmin)
 
 	}
+	r.createArgocdStaticUser(ctx,  req )
 	return ctrl.Result{}, nil
 }
+func(r *TeamReconciler)createArgocdStaticUser(ctx context.Context, req ctrl.Request)(ctrl.Result, error){
+	log := log.FromContext(ctx)
+	reqLogger := logf.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
+	reqLogger.Info("Reconciling team")
+	team := &teamv1.Team{}
+	err := r.Client.Get(context.TODO(), req.NamespacedName, team)
+
+	log.Info("team is found and teamAdmin is : " + team.Spec.TeamAdmin)
+	staticUser := map[string]map[string]string{
+		"data": {
+			"accounts." + team.Spec.Argo.Tokens.ArgocdUser: "apiKey,login",
+		},
+	}
+	staticUserByte, _ := json.Marshal(staticUser)
+	err = r.Client.Patch(context.Background(), &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "argocd",
+			Name:      "argocd-cm",
+		},
+	}, client.RawPatch(types.StrategicMergePatchType, staticUserByte))
+	if err != nil {
+		log.Error(err, "Failed to patch cm")
+		return ctrl.Result{}, err
+	}
+	//set password to the user
+	hash, _ := HashPassword(team.Spec.Argo.Tokens.ArgocdPass) // ignore error for the sake of simplicity
+
+	encodedPass := b64.StdEncoding.EncodeToString([]byte(hash))
+	staticPassword := map[string]map[string]string{
+		"data": {
+			"accounts." + team.Spec.Argo.Tokens.ArgocdUser + ".password":      encodedPass,
+		},
+	}
+	staticPassByte, _ := json.Marshal(staticPassword)
+
+	err = r.Client.Patch(context.Background(), &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "argocd",
+			Name:      "argocd-secret",
+		},
+	}, client.RawPatch(types.StrategicMergePatchType, staticPassByte))
+	if err != nil {
+		log.Error(err, "Failed to patch secret")
+		return ctrl.Result{}, err
+	}
+
+	return  ctrl.Result{}, nil
+}
+
+func HashPassword(password string) (string, error) {
+	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
+	return string(bytes), err
+}
+
+
+// SetupWithManager sets up the controller with the Manager.
+func (r *TeamReconciler) SetupWithManager(mgr ctrl.Manager) error {
+
+	return ctrl.NewControllerManagedBy(mgr).
+		For(&teamv1.Team{}).
+		Complete(r)
+}
+
