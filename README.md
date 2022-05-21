@@ -1,8 +1,6 @@
 # team-operator
 Add Team CRD to be able to create static ArgoCD user for each team.
 
-Enforcing per team quota (sum of used resources across all their namespaces) and delegating the per namespace quota to users.
-
 ## Instructions
 
 ### Development
