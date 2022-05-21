@@ -124,6 +124,7 @@ func (r *TeamReconciler) createArgocdStaticUser(ctx context.Context, req ctrl.Re
 		log.Error(err, "Failed to patch secret")
 		return ctrl.Result{}, err
 	}
+	r.setRBACArgoCDUser(ctx, req)
 
 	return ctrl.Result{}, nil
 }
@@ -138,25 +139,44 @@ func (r *TeamReconciler)setRBACArgoCDUser(ctx context.Context, req ctrl.Request)
 	reqLogger := logf.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
 	reqLogger.Info("Reconciling team")
 	team := &teamv1.Team{}
-	err := r.Client.Get(context.TODO(), req.NamespacedName, team)
-	rbac := map[string]map[string]string{
-		"data":{
-		"policy.csv": "g," +team.Spec.Argo.Tokens.ArgocdUser+"-admin,role: " +req.Name+"-admin",
-	},
-}
-	rbacByte, _ := json.Marshal(rbac)
-	log.Info(string(rbacByte))
+	found := &corev1.ConfigMap{}
+	err := r.Client.Get(ctx, types.NamespacedName{Name: "argocd-cm", Namespace: "argocd"}, found)
 
-	err = r.Client.Patch(context.Background(), &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "argocd",
-			Name:      "argocd-rbac-cm",
-		},
-	}, client.RawPatch(types.StrategicMergePatchType, rbacByte))
 	if err != nil {
-		log.Error(err, "Failed to patch rbac cm")
+		log.Error(err, "Failed to get  cm")
 		return ctrl.Result{}, err
 	}
+	var policies []string
+	//policies := found.Data["policy.csv"]
+	if found.Data["policy.csv"] != "" {
+		for _, policy := range found.Data["policy.csv"] {
+			policies = append(policies, policy)
+			
+		}
+	  newPolicy :="g," +team.Spec.Argo.Tokens.ArgocdUser+"-admin,role: " +req.Name+"-admin"
+	  log.Info(newPolicy)
+	  policies = append(policies, newPolicy)
+
+
+	}
+// 	rbac := map[string]map[string]string{
+// 		"data":{
+// 		"policy.csv": "g," +team.Spec.Argo.Tokens.ArgocdUser+"-admin,role: " +req.Name+"-admin",
+// 	},
+// }
+// 	rbacByte, _ := json.Marshal(rbac)
+// 	log.Info(string(rbacByte))
+
+// 	err = r.Client.Patch(context.Background(), &corev1.ConfigMap{
+// 		ObjectMeta: metav1.ObjectMeta{
+// 			Namespace: "argocd",
+// 			Name:      "argocd-rbac-cm",
+// 		},
+// 	}, client.RawPatch(types.StrategicMergePatchType, rbacByte))
+// 	if err != nil {
+// 		log.Error(err, "Failed to patch rbac cm")
+// 		return ctrl.Result{}, err
+// 	}
 	return ctrl.Result{}, nil
 }
 
