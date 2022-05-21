@@ -1,0 +1,20 @@
+domain: snappcloud.io
+layout:
+- go.kubebuilder.io/v3
+plugins:
+  manifests.sdk.operatorframework.io/v2: {}
+  scorecard.sdk.operatorframework.io/v2: {}
+  sdk.x-openshift.io/v1: {}
+projectName: team-operator
+repo: github.com/yeganeahmadnejad/team-operator
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: snappcloud.io
+  group: team
+  kind: Team
+  path: github.com/yeganeahmadnejad/team-operator/api/v1
+  version: v1
+version: "3"
