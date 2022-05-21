@@ -30,7 +30,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	teamv1 "github.com/yeganeahmadnejad/team-operator/api/v1"
+	teamv1 "github.com/snapp-incubator/team-operator/api/v1"
 	//+kubebuilder:scaffold:imports
 )
 

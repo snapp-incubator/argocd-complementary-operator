@@ -6,7 +6,7 @@ plugins:
   scorecard.sdk.operatorframework.io/v2: {}
   sdk.x-openshift.io/v1: {}
 projectName: team-operator
-repo: github.com/yeganeahmadnejad/team-operator
+repo: github.com/snapp-incubator/team-operator
 resources:
 - api:
     crdVersion: v1
@@ -15,6 +15,6 @@ resources:
   domain: snappcloud.io
   group: team
   kind: Team
-  path: github.com/yeganeahmadnejad/team-operator/api/v1
+  path: github.com/snapp-incubator/team-operator/api/v1
   version: v1
 version: "3"

@@ -1,4 +1,4 @@
-module github.com/yeganeahmadnejad/team-operator
+module github.com/snapp-incubator/team-operator
 
 go 1.16
 
