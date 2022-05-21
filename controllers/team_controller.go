@@ -18,7 +18,10 @@ package controllers
 
 import (
 	"context"
+	b64 "encoding/base64"
+	"encoding/json"
 	teamv1 "github.com/snapp-incubator/team-operator/api/v1"
+	"golang.org/x/crypto/bcrypt"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -27,11 +30,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"encoding/json"
-	b64 "encoding/base64"
-	"golang.org/x/crypto/bcrypt"
 )
-
 
 var logf = log.Log.WithName("controller_team")
 
@@ -80,10 +79,10 @@ func (r *TeamReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		log.Info("team is found and teamAdmin is : " + team.Spec.TeamAdmin)
 
 	}
-	r.createArgocdStaticUser(ctx,  req )
+	r.createArgocdStaticUser(ctx, req)
 	return ctrl.Result{}, nil
 }
-func(r *TeamReconciler)createArgocdStaticUser(ctx context.Context, req ctrl.Request)(ctrl.Result, error){
+func (r *TeamReconciler) createArgocdStaticUser(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 	reqLogger := logf.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
 	reqLogger.Info("Reconciling team")
@@ -113,7 +112,7 @@ func(r *TeamReconciler)createArgocdStaticUser(ctx context.Context, req ctrl.Requ
 	encodedPass := b64.StdEncoding.EncodeToString([]byte(hash))
 	staticPassword := map[string]map[string]string{
 		"data": {
-			"accounts." + team.Spec.Argo.Tokens.ArgocdUser + ".password":      encodedPass,
+			"accounts." + team.Spec.Argo.Tokens.ArgocdUser + ".password": encodedPass,
 		},
 	}
 	staticPassByte, _ := json.Marshal(staticPassword)
@@ -129,14 +128,13 @@ func(r *TeamReconciler)createArgocdStaticUser(ctx context.Context, req ctrl.Requ
 		return ctrl.Result{}, err
 	}
 
-	return  ctrl.Result{}, nil
+	return ctrl.Result{}, nil
 }
 
 func HashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	return string(bytes), err
 }
-
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *TeamReconciler) SetupWithManager(mgr ctrl.Manager) error {
@@ -145,4 +143,3 @@ func (r *TeamReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&teamv1.Team{}).
 		Complete(r)
 }
-
