@@ -2,7 +2,21 @@
 Add Team CRD to be able to create static ArgoCD user for each team.
 
 ## Instructions
-
+```
+apiVersion: team.snappcloud.io/v1
+kind: Team
+metadata:
+  name: {{teamName}}
+spec:
+  teamAdmin: {{teamAdmin}}
+  argo:
+    Admin:
+      argocdUser: {{teamName}}-admin-{{user}}
+      argocdPass: ******
+    View:
+      argocdUser: {{teamName}}-view-{{user}}
+      argocdPass: ******
+```
 ### Development
 
 * `make generate` update the generated code for that resource type.
