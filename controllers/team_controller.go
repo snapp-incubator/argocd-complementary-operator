@@ -39,10 +39,7 @@ type TeamReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
-type Account struct {
-	Password string `json:"password"`
-	Username string `json:"username"`
-}
+
 
 //+kubebuilder:rbac:groups=team.snappcloud.io,resources=teams,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=team.snappcloud.io,resources=teams/status,verbs=get;update;patch
@@ -134,6 +131,33 @@ func (r *TeamReconciler) createArgocdStaticUser(ctx context.Context, req ctrl.Re
 func HashPassword(password string) (string, error) {
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
 	return string(bytes), err
+}
+
+func (r *TeamReconciler)setRBACArgoCDUser(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	log := log.FromContext(ctx)
+	reqLogger := logf.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
+	reqLogger.Info("Reconciling team")
+	team := &teamv1.Team{}
+	err := r.Client.Get(context.TODO(), req.NamespacedName, team)
+	rbac := map[string]map[string]string{
+		"data":{
+		"policy.csv": "g," +team.Spec.Argo.Tokens.ArgocdUser+"-admin,role: " +req.Name+"-admin",
+	},
+}
+	rbacByte, _ := json.Marshal(rbac)
+	log.Info(string(rbacByte))
+
+	err = r.Client.Patch(context.Background(), &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: "argocd",
+			Name:      "argocd-rbac-cm",
+		},
+	}, client.RawPatch(types.StrategicMergePatchType, rbacByte))
+	if err != nil {
+		log.Error(err, "Failed to patch rbac cm")
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
