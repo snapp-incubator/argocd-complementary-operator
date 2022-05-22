@@ -139,8 +139,13 @@ func (r *TeamReconciler)setRBACArgoCDUser(ctx context.Context, req ctrl.Request)
 	log := log.FromContext(ctx)
 	reqLogger := logf.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
 	reqLogger.Info("Reconciling team")
-	//team := &teamv1.Team{}
+    team := &teamv1.Team{}
 	found := &corev1.ConfigMap{}
+	err1 := r.Client.Get(context.TODO(), req.NamespacedName, team)
+	if err1 != nil {
+		log.Error(err1, "Failed to get  team")
+		return ctrl.Result{}, err1
+	}
 	err := r.Client.Get(ctx, types.NamespacedName{Name: "argocd-rbac-cm", Namespace: "argocd"}, found)
 	if err != nil {
 		log.Error(err, "Failed to get  cm")
@@ -151,10 +156,20 @@ func (r *TeamReconciler)setRBACArgoCDUser(ctx context.Context, req ctrl.Request)
 	// for _, v := range split {
 	// 	log.Info((v))
 	// }
-
+	log.Info("in setRBACArgoCDUser")
+	log.Info(team.Spec.Argo.Tokens.ArgocdUser)
+	newPolicy :="g," +team.Spec.Argo.Tokens.ArgocdUser+"-admin,role: " +req.Name+"-admin"
+    duplicatePolicy:=false
 	for _, line := range strings.Split(found.Data["policy.csv"], "\n") {
+		if newPolicy==line {
+			duplicatePolicy=true
+		}
 		log.Info(line)
 	 }
+	 if duplicatePolicy== false{
+		found.Data["policy.csv"]=found.Data["policy.csv"]+"\n"+newPolicy
+		err = r.Client.Update(ctx, found)
+	}
 	//log.Info("The length of the slice is:", len(split))
 	// policies := found.Data["policy.csv"]
 
@@ -165,7 +180,6 @@ func (r *TeamReconciler)setRBACArgoCDUser(ctx context.Context, req ctrl.Request)
 	// 	}
 
 
-	//   newPolicy :="g," +team.Spec.Argo.Tokens.ArgocdUser+"-admin,role: " +req.Name+"-admin"
 	//   log.Info(newPolicy)
 	//   policies = append(policies, newPolicy)
 
