@@ -11,10 +11,10 @@ spec:
   teamAdmin: {{teamAdmin}}
   argo:
     Admin:
-      argocdUser: {{teamName}}-admin-{{user}}
+      argocdUser: {{teamName}}-admin-CI
       argocdPass: ******
     View:
-      argocdUser: {{teamName}}-view-{{user}}
+      argocdUser: {{teamName}}-view-CI
       argocdPass: ******
 ```
 ### Development
