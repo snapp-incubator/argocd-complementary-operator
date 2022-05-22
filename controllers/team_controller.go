@@ -30,6 +30,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"strings"
 )
 
 var logf = log.Log.WithName("controller_team")
@@ -138,43 +139,55 @@ func (r *TeamReconciler)setRBACArgoCDUser(ctx context.Context, req ctrl.Request)
 	log := log.FromContext(ctx)
 	reqLogger := logf.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
 	reqLogger.Info("Reconciling team")
-	team := &teamv1.Team{}
+	//team := &teamv1.Team{}
 	found := &corev1.ConfigMap{}
-	err := r.Client.Get(ctx, types.NamespacedName{Name: "argocd-cm", Namespace: "argocd"}, found)
+	err := r.Client.Get(ctx, types.NamespacedName{Name: "argocd-rbac-cm", Namespace: "argocd"}, found)
 	if err != nil {
 		log.Error(err, "Failed to get  cm")
 		return ctrl.Result{}, err
 	}
-	var policies []string
-	//policies := found.Data["policy.csv"]
-	if found.Data["policy.csv"] != "" {
-		for _, policy := range found.Data["policy.csv"] {
-			policies = append(policies, policy)
-			
-		}
-	  newPolicy :="g," +team.Spec.Argo.Tokens.ArgocdUser+"-admin,role: " +req.Name+"-admin"
-	  log.Info(newPolicy)
-	  policies = append(policies, newPolicy)
+	//var policies []string
+	// split := strings.Split(found.Data["policy.csv"], "\n")
+	// for _, v := range split {
+	// 	log.Info((v))
+	// }
 
-	}
+	for _, line := range strings.Split(found.Data["policy.csv"], "\n") {
+		log.Info(line)
+	 }
+	//log.Info("The length of the slice is:", len(split))
+	// policies := found.Data["policy.csv"]
+
+	// if found.Data["policy.csv"] != "" {
+	// 	for _, policy := range found.Data["policy.csv"] {
+	// 		policies = append(policies, policy)
+			
+	// 	}
+
+
+	//   newPolicy :="g," +team.Spec.Argo.Tokens.ArgocdUser+"-admin,role: " +req.Name+"-admin"
+	//   log.Info(newPolicy)
+	//   policies = append(policies, newPolicy)
+
+	// }
 // 	rbac := map[string]map[string]string{
 // 		"data":{
 // 		"policy.csv": "g," +team.Spec.Argo.Tokens.ArgocdUser+"-admin,role: " +req.Name+"-admin",
 // 	},
 // }
-// 	rbacByte, _ := json.Marshal(rbac)
-// 	log.Info(string(rbacByte))
+	// rbacByte, _ := json.Marshal(rbac)
+	// log.Info(string(rbacByte))
 
-// 	err = r.Client.Patch(context.Background(), &corev1.ConfigMap{
-// 		ObjectMeta: metav1.ObjectMeta{
-// 			Namespace: "argocd",
-// 			Name:      "argocd-rbac-cm",
-// 		},
-// 	}, client.RawPatch(types.StrategicMergePatchType, rbacByte))
-// 	if err != nil {
-// 		log.Error(err, "Failed to patch rbac cm")
-// 		return ctrl.Result{}, err
-// 	}
+	// err = r.Client.Patch(context.Background(), &corev1.ConfigMap{
+	// 	ObjectMeta: metav1.ObjectMeta{
+	// 		Namespace: "argocd",
+	// 		Name:      "argocd-rbac-cm",
+	// 	},
+	// }, client.RawPatch(types.StrategicMergePatchType, rbacByte))
+	// if err != nil {
+	// 	log.Error(err, "Failed to patch rbac cm")
+	// 	return ctrl.Result{}, err
+ 	// }
 	return ctrl.Result{}, nil
 }
 
