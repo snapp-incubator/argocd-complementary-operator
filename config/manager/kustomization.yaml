@@ -13,4 +13,4 @@ kind: Kustomization
 images:
 - name: controller
   newName: registry.okd4.ts-1.staging-snappcloud.io/public-reg/team-operator
-  newTag: v11.0
+  newTag: "5.4"

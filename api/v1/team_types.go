@@ -36,18 +36,27 @@ type TeamSpec struct {
 type TeamCICD struct {
     // INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
     // Important: Run "make" to regenerate code after modifying this file
-    Tokens ArgocdToken `json:"tokens,omitempty"`
+    Admin ArgocdCIAdmin `json:"admin,omitempty"`
+    View ArgocdCIAdmin `json:"view,omitempty"`
+
 
 }
-type ArgocdToken struct {
+type ArgocdCIAdmin struct {
     // INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
     // Important: Run "make" to regenerate code after modifying this file
     ArgocdUser string `json:"argocdUser,omitempty"`
     ArgocdPass string `json:"argocdPass,omitempty"`
-    ArgocdToken string `json:"argocdToken,omitempty"`
+    //ArgocdToken string `json:"argocdToken,omitempty"`
 
 }
+type ArgocdCIView struct {
+    // INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
+    // Important: Run "make" to regenerate code after modifying this file
+    ArgocdUser string `json:"argocdUser,omitempty"`
+    ArgocdPass string `json:"argocdPass,omitempty"`
+    //ArgocdToken string `json:"argocdToken,omitempty"`
 
+}
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
