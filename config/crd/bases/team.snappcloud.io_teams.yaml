@@ -38,14 +38,22 @@ spec:
             properties:
               argo:
                 properties:
-                  tokens:
+                  admin:
                     description: 'INSERT ADDITIONAL STATUS FIELD - define observed
                       state of cluster Important: Run "make" to regenerate code after
                       modifying this file'
                     properties:
                       argocdPass:
                         type: string
-                      argocdToken:
+                      argocdUser:
+                        description: 'INSERT ADDITIONAL STATUS FIELD - define observed
+                          state of cluster Important: Run "make" to regenerate code
+                          after modifying this file'
+                        type: string
+                    type: object
+                  view:
+                    properties:
+                      argocdPass:
                         type: string
                       argocdUser:
                         description: 'INSERT ADDITIONAL STATUS FIELD - define observed
