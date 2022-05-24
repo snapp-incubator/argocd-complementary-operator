@@ -33,6 +33,8 @@ import (
 
 	teamv1 "github.com/snapp-incubator/team-operator/api/v1"
 	"github.com/snapp-incubator/team-operator/controllers"
+	userv1 "github.com/openshift/api/user/v1"
+
 	//+kubebuilder:scaffold:imports
 )
 
@@ -45,6 +47,8 @@ func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 
 	utilruntime.Must(teamv1.AddToScheme(scheme))
+	utilruntime.Must(userv1.AddToScheme(scheme))
+
 	//+kubebuilder:scaffold:scheme
 }
 

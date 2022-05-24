@@ -31,6 +31,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 	"strings"
+	userv1 "github.com/openshift/api/user/v1"
 )
 
 var logf = log.Log.WithName("controller_team")
@@ -47,6 +48,7 @@ type TeamReconciler struct {
 //+kubebuilder:rbac:groups=team.snappcloud.io,resources=teams/finalizers,verbs=update
 //+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=user.openshift.io,resources=*,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the clus k8s.io/api closer to the desired state.
@@ -208,6 +210,37 @@ func (r *TeamReconciler)setRBACArgoCDAdminUser(ctx context.Context, req ctrl.Req
 	// for _, v := range split {
 	// 	log.Info((v))
 	// }
+	log.Info("users")
+	for _, user := range team.Spec.Argo.Admin.Users {
+		log.Info(user)
+	}
+    group := &userv1.Group{}
+   // grpname:= req.Name+"-admin"
+	//err2 := r.Client.Get(context.Background(), grpname, group)
+	//group, err := r.Client.Get(context.Background(), req.Name+"-admin", metav1.GetOptions{})
+	//err2 := r.Client.Get(ctx, types.NamespacedName{Name: "test", Namespace: ""}, group)
+	//err2 := r.Client.Get(ctx, &userv1.Group{ObjectMeta: metav1.ObjectMeta{Name: "test"}} , metav1.CreateOptions{})
+	err2 := r.Client.Get(ctx, types.NamespacedName{Name:"test", Namespace: ""}, group)
+
+	if err2 != nil{
+		log.Error(err2,"Failed get group")
+		return ctrl.Result{}, err
+	}
+
+	group.Users = append(group.Users, team.Spec.Argo.Admin.Users[1])
+	err3 := r.Client.Update(ctx, group)
+	if err3 != nil{
+		log.Error(err3,"group doesnt exist")
+		return ctrl.Result{}, err
+	}
+
+	// ocpGroup = &userv1.Group{
+	// 	TypeMeta: metav1.TypeMeta{
+	// 		Kind:       "Group",
+	// 		APIVersion: userv1.GroupVersion.String(),
+	// 	},
+	// }
+
 	log.Info("in setRBACArgoCDUser")
 	log.Info(req.Name+"-Admin-CI")
 	newPolicy :="g," +req.Name+"-Admin-CI,role: : " +req.Name+"-admin"
