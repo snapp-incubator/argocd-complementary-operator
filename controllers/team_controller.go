@@ -215,19 +215,29 @@ func (r *TeamReconciler)setRBACArgoCDAdminUser(ctx context.Context, req ctrl.Req
 		log.Info(user)
 	}
     group := &userv1.Group{}
-   // grpname:= req.Name+"-admin"
+    groupName:= req.Name+"-admin"
 	//err2 := r.Client.Get(context.Background(), grpname, group)
 	//group, err := r.Client.Get(context.Background(), req.Name+"-admin", metav1.GetOptions{})
 	//err2 := r.Client.Get(ctx, types.NamespacedName{Name: "test", Namespace: ""}, group)
 	//err2 := r.Client.Get(ctx, &userv1.Group{ObjectMeta: metav1.ObjectMeta{Name: "test"}} , metav1.CreateOptions{})
-	err2 := r.Client.Get(ctx, types.NamespacedName{Name:"test", Namespace: ""}, group)
+	err2 := r.Client.Get(ctx, types.NamespacedName{Name:groupName, Namespace: ""}, group)
 
 	if err2 != nil{
 		log.Error(err2,"Failed get group")
 		return ctrl.Result{}, err
 	}
-
-	group.Users = append(group.Users, team.Spec.Argo.Admin.Users[1])
+	duplicateUser := false
+	for _, user := range team.Spec.Argo.Admin.Users {
+		for _,grpuser := range group.Users{
+			if user == grpuser {
+				duplicateUser = true
+			}
+		}
+		if !duplicateUser  {
+			group.Users = append(group.Users, user)
+		}
+		log.Info(user)
+	} 
 	err3 := r.Client.Update(ctx, group)
 	if err3 != nil{
 		log.Error(err3,"group doesnt exist")
