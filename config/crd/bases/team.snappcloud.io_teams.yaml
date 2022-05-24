@@ -43,9 +43,7 @@ spec:
                       state of cluster Important: Run "make" to regenerate code after
                       modifying this file'
                     properties:
-                      argocdPass:
-                        type: string
-                      argocdUser:
+                      ciPass:
                         description: 'INSERT ADDITIONAL STATUS FIELD - define observed
                           state of cluster Important: Run "make" to regenerate code
                           after modifying this file'
@@ -53,9 +51,7 @@ spec:
                     type: object
                   view:
                     properties:
-                      argocdPass:
-                        type: string
-                      argocdUser:
+                      ciPass:
                         description: 'INSERT ADDITIONAL STATUS FIELD - define observed
                           state of cluster Important: Run "make" to regenerate code
                           after modifying this file'
