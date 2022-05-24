@@ -46,6 +46,7 @@ type ArgocdCIAdmin struct {
     // Important: Run "make" to regenerate code after modifying this file
     CIPass string `json:"ciPass,omitempty"`
     //ArgocdToken string `json:"argocdToken,omitempty"`
+    Users []string  `json:"users,omitempty"`
 
 }
 type ArgocdCIView struct {
@@ -53,6 +54,8 @@ type ArgocdCIView struct {
     // Important: Run "make" to regenerate code after modifying this file
     CIPass string `json:"ciPass,omitempty"`
     //ArgocdToken string `json:"argocdToken,omitempty"`
+    //Users []string  `json:"users,omitempty"`
+
 
 }
 
