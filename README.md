@@ -10,12 +10,13 @@ metadata:
 spec:
   teamAdmin: {{teamAdmin}}
   argo:
-    Admin:
-      argocdUser: {{teamName}}-admin-CI
-      argocdPass: ******
-    View:
-      argocdUser: {{teamName}}-view-CI
-      argocdPass: ******
+    admin:
+      ciPass: ******
+      users:
+      - user1
+      - user2
+    view:
+      ciPass: ******
 ```
 ### Development
 
