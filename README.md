@@ -17,6 +17,9 @@ spec:
       - user2
     view:
       ciPass: ******
+      users:
+      - user1
+      - user2
 ```
 ### Development
 
