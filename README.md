@@ -8,7 +8,6 @@ kind: Team
 metadata:
   name: {{teamName}}
 spec:
-  teamAdmin: {{teamAdmin}}
   argo:
     admin:
       ciPass: ******
