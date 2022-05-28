@@ -43,11 +43,11 @@ type TeamReconciler struct {
 }
 
 
-//+kubebuilder:rbac:groups=team.snappcloud.io,resources=teams,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=team.snappcloud.io,resources=teams,namespace=team-operator-system,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=team.snappcloud.io,resources=teams/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=team.snappcloud.io,resources=teams/finalizers,verbs=update
-//+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=configmaps,namespace=argocd,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=secrets,namespace=argocd,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=user.openshift.io,resources=*,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
