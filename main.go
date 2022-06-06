@@ -76,8 +76,8 @@ func main() {
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "e9600511.snappcloud.io",
-		Namespace:              "team-operator-system",
-		//Namespace:              "",
+		//Namespace:              "team-operator-system",
+		Namespace:              "",
 
 	})
 	if err != nil {

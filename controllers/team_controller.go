@@ -43,11 +43,11 @@ type TeamReconciler struct {
 }
 
 
-//+kubebuilder:rbac:groups=team.snappcloud.io,resources=teams,namespace=team-operator-system,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=team.snappcloud.io,resources=teams,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=team.snappcloud.io,resources=teams/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=team.snappcloud.io,resources=teams/finalizers,verbs=update
-//+kubebuilder:rbac:groups="",resources=configmaps,namespace=argocd,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups="",resources=secrets,namespace=argocd,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=user.openshift.io,resources=*,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
@@ -227,22 +227,43 @@ func (r *TeamReconciler)setRBACArgoCDAdminUser(ctx context.Context, req ctrl.Req
 		return ctrl.Result{}, err
 	}
 	duplicateUser := false
+	// for _, user := range team.Spec.Argo.Admin.Users {
+	// 	for _,grpuser := range group.Users{
+	// 		if user == grpuser {
+	// 			duplicateUser = true
+	// 		}
+	// 	}
+	// 	if !duplicateUser  {
+	// 		group.Users = append(group.Users, user)
+	// 	}
+	// 	log.Info(user)
+	// } 
+	// err3 := r.Client.Update(ctx, group)
+	// if err3 != nil{
+	// 	log.Error(err3,"group doesnt exist")
+	// 	return ctrl.Result{}, err
+	// }
+
 	for _, user := range team.Spec.Argo.Admin.Users {
-		for _,grpuser := range group.Users{
-			if user == grpuser {
-				duplicateUser = true
-			}
-		}
-		if !duplicateUser  {
-			group.Users = append(group.Users, user)
-		}
-		log.Info(user)
-	} 
-	err3 := r.Client.Update(ctx, group)
-	if err3 != nil{
-		log.Error(err3,"group doesnt exist")
-		return ctrl.Result{}, err
-	}
+        user1 := &userv1.User{}
+        errUser := r.Client.Get(ctx, types.NamespacedName{Name:user, Namespace: ""}, user1)
+
+        for _,grpuser := range group.Users{
+            if user == grpuser {
+                duplicateUser = true
+            }
+        }
+        if !duplicateUser && errUser==nil  {
+            group.Users = append(group.Users, user)
+        }
+        log.Info(user)
+    } 
+    err3 := r.Client.Update(ctx, group)
+    if err3 != nil{
+        log.Error(err3,"group doesnt exist")
+        return ctrl.Result{}, err
+    }
+
 
 	// ocpGroup = &userv1.Group{
 	// 	TypeMeta: metav1.TypeMeta{

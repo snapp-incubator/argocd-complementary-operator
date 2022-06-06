@@ -7,6 +7,30 @@ metadata:
   name: manager-role
 rules:
 - apiGroups:
+  - ""
+  resources:
+  - configmaps
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - secrets
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
   - team.snappcloud.io
   resources:
   - teams
@@ -34,27 +58,6 @@ rules:
   - update
 - apiGroups:
   - user.openshift.io
-  resources:
-  - '*'
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-
----
-apiVersion: rbac.authorization.k8s.io/v1
-kind: Role
-metadata:
-  creationTimestamp: null
-  name: manager-role
-  namespace: argocd
-rules:
-- apiGroups:
-  - ""
   resources:
   - '*'
   verbs:
