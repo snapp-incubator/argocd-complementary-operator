@@ -31,10 +31,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	userv1 "github.com/openshift/api/user/v1"
 	teamv1 "github.com/snapp-incubator/team-operator/api/v1"
 	"github.com/snapp-incubator/team-operator/controllers"
-	userv1 "github.com/openshift/api/user/v1"
-
 	//+kubebuilder:scaffold:imports
 )
 
@@ -76,9 +75,6 @@ func main() {
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "e9600511.snappcloud.io",
-		//Namespace:              "team-operator-system",
-		Namespace:              "",
-
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")

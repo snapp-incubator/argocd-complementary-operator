@@ -30,7 +30,6 @@ type TeamSpec struct {
     // Important: Run "make" to regenerate code after modifying this file
 
     // Foo is an example field of Team. Edit team_types.go to remove/update
-    TeamAdmin string `json:"teamAdmin,omitempty"`
     Argo TeamCICD `json:"argo,omitempty"`
 }
 type TeamCICD struct {
@@ -54,7 +53,7 @@ type ArgocdCIView struct {
     // Important: Run "make" to regenerate code after modifying this file
     CIPass string `json:"ciPass,omitempty"`
     //ArgocdToken string `json:"argocdToken,omitempty"`
-    //Users []string  `json:"users,omitempty"`
+    Users []string  `json:"users,omitempty"`
 
 
 }

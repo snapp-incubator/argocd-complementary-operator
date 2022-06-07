@@ -20,6 +20,9 @@ import (
 	"context"
 	b64 "encoding/base64"
 	"encoding/json"
+	"strings"
+
+	userv1 "github.com/openshift/api/user/v1"
 	teamv1 "github.com/snapp-incubator/team-operator/api/v1"
 	"golang.org/x/crypto/bcrypt"
 	corev1 "k8s.io/api/core/v1"
@@ -30,8 +33,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	"strings"
-	userv1 "github.com/openshift/api/user/v1"
 )
 
 var logf = log.Log.WithName("controller_team")
@@ -41,7 +42,6 @@ type TeamReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
-
 
 //+kubebuilder:rbac:groups=team.snappcloud.io,resources=teams,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=team.snappcloud.io,resources=teams/status,verbs=get;update;patch
@@ -76,34 +76,35 @@ func (r *TeamReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 		// Error reading the object - requeue the request.
 		return ctrl.Result{}, err
 	} else {
-		log.Info("team is found and teamAdmin is : " + team.Spec.TeamAdmin)
+		log.Info("team is found and teamName is : " + team.Name)
 
 	}
-	r.createArgocdStatiAdminUser(ctx, req)
-	r.createArgocdStatiViewUser(ctx, req)
+	r.createArgocdStaticAdminUser(ctx, req)
+	r.createArgocdStaticViewUser(ctx, req)
 
 	return ctrl.Result{}, nil
 }
-func (r *TeamReconciler) createArgocdStatiAdminUser(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *TeamReconciler) createArgocdStaticAdminUser(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 	reqLogger := logf.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
 	reqLogger.Info("Reconciling team")
 	team := &teamv1.Team{}
 	err := r.Client.Get(context.TODO(), req.NamespacedName, team)
 
-	log.Info("team is found and teamAdmin is : " + team.Spec.TeamAdmin)
-	staticUser := map[string]map[string]string{
+	log.Info("team is found and teamName is : " + team.Name)
+	//create static admin CI user
+	staticAdminUser := map[string]map[string]string{
 		"data": {
-			"accounts." + req.Name+"-Admin-CI": "apiKey,login",
+			"accounts." + req.Name + "-Admin-CI": "apiKey,login",
 		},
 	}
-	staticUserByte, _ := json.Marshal(staticUser)
+	staticAdminUserByte, _ := json.Marshal(staticAdminUser)
 	err = r.Client.Patch(context.Background(), &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "argocd",
 			Name:      "argocd-cm",
 		},
-	}, client.RawPatch(types.StrategicMergePatchType, staticUserByte))
+	}, client.RawPatch(types.StrategicMergePatchType, staticAdminUserByte))
 	if err != nil {
 		log.Error(err, "Failed to patch cm")
 		return ctrl.Result{}, err
@@ -114,7 +115,7 @@ func (r *TeamReconciler) createArgocdStatiAdminUser(ctx context.Context, req ctr
 	encodedPass := b64.StdEncoding.EncodeToString([]byte(hash))
 	staticPassword := map[string]map[string]string{
 		"data": {
-			"accounts." + req.Name+"-Admin-CI.password": encodedPass,
+			"accounts." + req.Name + "-Admin-CI.password": encodedPass,
 		},
 	}
 	staticPassByte, _ := json.Marshal(staticPassword)
@@ -134,26 +135,26 @@ func (r *TeamReconciler) createArgocdStatiAdminUser(ctx context.Context, req ctr
 	return ctrl.Result{}, nil
 }
 
-func (r *TeamReconciler) createArgocdStatiViewUser(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *TeamReconciler) createArgocdStaticViewUser(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 	reqLogger := logf.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
 	reqLogger.Info("Reconciling team")
 	team := &teamv1.Team{}
 	err := r.Client.Get(context.TODO(), req.NamespacedName, team)
 
-	log.Info("team is found and teamAdmin is : " + team.Spec.TeamAdmin)
-	staticUser := map[string]map[string]string{
+	log.Info("team is found and teamName is : " + team.Name)
+	staticViewUser := map[string]map[string]string{
 		"data": {
-			"accounts." + req.Name+"-View-CI": "apiKey,login",
+			"accounts." + req.Name + "-View-CI": "apiKey,login",
 		},
 	}
-	staticUserByte, _ := json.Marshal(staticUser)
+	staticViewUserByte, _ := json.Marshal(staticViewUser)
 	err = r.Client.Patch(context.Background(), &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: "argocd",
 			Name:      "argocd-cm",
 		},
-	}, client.RawPatch(types.StrategicMergePatchType, staticUserByte))
+	}, client.RawPatch(types.StrategicMergePatchType, staticViewUserByte))
 	if err != nil {
 		log.Error(err, "Failed to patch cm")
 		return ctrl.Result{}, err
@@ -165,7 +166,7 @@ func (r *TeamReconciler) createArgocdStatiViewUser(ctx context.Context, req ctrl
 
 	staticPassword := map[string]map[string]string{
 		"data": {
-			"accounts." + req.Name+"-View-CI" + ".password": encodedPass,
+			"accounts." + req.Name + "-View-CI" + ".password": encodedPass,
 		},
 	}
 	staticPassByte, _ := json.Marshal(staticPassword)
@@ -189,142 +190,79 @@ func HashPassword(password string) (string, error) {
 	return string(bytes), err
 }
 
-func (r *TeamReconciler)setRBACArgoCDAdminUser(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *TeamReconciler) setRBACArgoCDAdminUser(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 	reqLogger := logf.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
 	reqLogger.Info("Reconciling team")
-    team := &teamv1.Team{}
+	team := &teamv1.Team{}
 	found := &corev1.ConfigMap{}
 	err1 := r.Client.Get(context.TODO(), req.NamespacedName, team)
 	if err1 != nil {
-		log.Error(err1, "Failed to get  team")
+		log.Error(err1, "Failed to get team")
 		return ctrl.Result{}, err1
 	}
 	err := r.Client.Get(ctx, types.NamespacedName{Name: "argocd-rbac-cm", Namespace: "argocd"}, found)
 	if err != nil {
-		log.Error(err, "Failed to get  cm")
+		log.Error(err, "Failed to get cm")
 		return ctrl.Result{}, err
 	}
-	//var policies []string
-	// split := strings.Split(found.Data["policy.csv"], "\n")
-	// for _, v := range split {
-	// 	log.Info((v))
-	// }
 	log.Info("users")
 	for _, user := range team.Spec.Argo.Admin.Users {
 		log.Info(user)
 	}
-    group := &userv1.Group{}
-    groupName:= req.Name+"-admin"
-	//err2 := r.Client.Get(context.Background(), grpname, group)
-	//group, err := r.Client.Get(context.Background(), req.Name+"-admin", metav1.GetOptions{})
-	//err2 := r.Client.Get(ctx, types.NamespacedName{Name: "test", Namespace: ""}, group)
-	//err2 := r.Client.Get(ctx, &userv1.Group{ObjectMeta: metav1.ObjectMeta{Name: "test"}} , metav1.CreateOptions{})
-	err2 := r.Client.Get(ctx, types.NamespacedName{Name:groupName, Namespace: ""}, group)
-
-	if err2 != nil{
-		log.Error(err2,"Failed get group")
+	group := &userv1.Group{}
+	groupName := req.Name + "-admin"
+	err2 := r.Client.Get(ctx, types.NamespacedName{Name: groupName, Namespace: ""}, group)
+	if err2 != nil {
+		log.Error(err2, "Failed get group")
 		return ctrl.Result{}, err
 	}
 	duplicateUser := false
-	// for _, user := range team.Spec.Argo.Admin.Users {
-	// 	for _,grpuser := range group.Users{
-	// 		if user == grpuser {
-	// 			duplicateUser = true
-	// 		}
-	// 	}
-	// 	if !duplicateUser  {
-	// 		group.Users = append(group.Users, user)
-	// 	}
-	// 	log.Info(user)
-	// } 
-	// err3 := r.Client.Update(ctx, group)
-	// if err3 != nil{
-	// 	log.Error(err3,"group doesnt exist")
-	// 	return ctrl.Result{}, err
-	// }
-
+	//check user exit to add it to group
 	for _, user := range team.Spec.Argo.Admin.Users {
-        user1 := &userv1.User{}
-        errUser := r.Client.Get(ctx, types.NamespacedName{Name:user, Namespace: ""}, user1)
-
-        for _,grpuser := range group.Users{
-            if user == grpuser {
-                duplicateUser = true
-            }
-        }
-        if !duplicateUser && errUser==nil  {
-            group.Users = append(group.Users, user)
-        }
-        log.Info(user)
-    } 
-    err3 := r.Client.Update(ctx, group)
-    if err3 != nil{
-        log.Error(err3,"group doesnt exist")
-        return ctrl.Result{}, err
-    }
-
-
-	// ocpGroup = &userv1.Group{
-	// 	TypeMeta: metav1.TypeMeta{
-	// 		Kind:       "Group",
-	// 		APIVersion: userv1.GroupVersion.String(),
-	// 	},
-	// }
-
+		user1 := &userv1.User{}
+		errUser := r.Client.Get(ctx, types.NamespacedName{Name: user, Namespace: ""}, user1)
+		for _, grpuser := range group.Users {
+			if user == grpuser {
+				duplicateUser = true
+			}
+		}
+		if !duplicateUser && errUser == nil {
+			group.Users = append(group.Users, user)
+		}
+	}
+	err3 := r.Client.Update(ctx, group)
+	if err3 != nil {
+		log.Error(err3, "group doesnt exist")
+		return ctrl.Result{}, err
+	}
+	//add argocd rbac policy
 	log.Info("in setRBACArgoCDUser")
-	log.Info(req.Name+"-Admin-CI")
-	newPolicy :="g," +req.Name+"-Admin-CI,role: : " +req.Name+"-admin"
-    duplicatePolicy:=false
+	log.Info(req.Name + "-Admin-CI")
+	newPolicy := "g," + req.Name + "-Admin-CI,role: : " + req.Name + "-admin"
+	duplicatePolicy := false
 	for _, line := range strings.Split(found.Data["policy.csv"], "\n") {
-		if newPolicy==line {
-			duplicatePolicy=true
+		if newPolicy == line {
+			duplicatePolicy = true
 		}
 		log.Info(line)
-	 }
-	 if duplicatePolicy== false{
-		found.Data["policy.csv"]=found.Data["policy.csv"]+"\n"+newPolicy
-		err = r.Client.Update(ctx, found)
 	}
-	//log.Info("The length of the slice is:", len(split))
-	// policies := found.Data["policy.csv"]
+	if duplicatePolicy == false {
+		found.Data["policy.csv"] = found.Data["policy.csv"] + "\n" + newPolicy
+		errRbac := r.Client.Update(ctx, found)
+		if errRbac != nil {
+			log.Error(err3, "error in updating argocd-rbac-cm")
+			return ctrl.Result{}, err
+		}
+	}
 
-	// if found.Data["policy.csv"] != "" {
-	// 	for _, policy := range found.Data["policy.csv"] {
-	// 		policies = append(policies, policy)
-			
-	// 	}
-
-
-	//   log.Info(newPolicy)
-	//   policies = append(policies, newPolicy)
-
-	// }
-// 	rbac := map[string]map[string]string{
-// 		"data":{
-// 		"policy.csv": "g," +team.Spec.Argo.Tokens.ArgocdUser+"-admin,role: " +req.Name+"-admin",
-// 	},
-// }
-	// rbacByte, _ := json.Marshal(rbac)
-	// log.Info(string(rbacByte))
-
-	// err = r.Client.Patch(context.Background(), &corev1.ConfigMap{
-	// 	ObjectMeta: metav1.ObjectMeta{
-	// 		Namespace: "argocd",
-	// 		Name:      "argocd-rbac-cm",
-	// 	},
-	// }, client.RawPatch(types.StrategicMergePatchType, rbacByte))
-	// if err != nil {
-	// 	log.Error(err, "Failed to patch rbac cm")
-	// 	return ctrl.Result{}, err
- 	// }
 	return ctrl.Result{}, nil
 }
-func (r *TeamReconciler)setRBACArgoCDViewUser(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *TeamReconciler) setRBACArgoCDViewUser(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 	reqLogger := logf.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
 	reqLogger.Info("Reconciling team")
-    team := &teamv1.Team{}
+	team := &teamv1.Team{}
 	found := &corev1.ConfigMap{}
 	err1 := r.Client.Get(context.TODO(), req.NamespacedName, team)
 	if err1 != nil {
@@ -336,27 +274,58 @@ func (r *TeamReconciler)setRBACArgoCDViewUser(ctx context.Context, req ctrl.Requ
 		log.Error(err, "Failed to get  cm")
 		return ctrl.Result{}, err
 	}
-	//var policies []string
-	// split := strings.Split(found.Data["policy.csv"], "\n")
-	// for _, v := range split {
-	// 	log.Info((v))
-	// }
+	log.Info("users")
+	for _, user := range team.Spec.Argo.View.Users {
+		log.Info(user)
+	}
+	group := &userv1.Group{}
+	groupName := req.Name + "-view"
+	err2 := r.Client.Get(ctx, types.NamespacedName{Name: groupName, Namespace: ""}, group)
+	if err2 != nil {
+		log.Error(err2, "Failed get group")
+		return ctrl.Result{}, err
+	}
+	duplicateUser := false
+	//check user exit to add it to group
+	for _, user := range team.Spec.Argo.View.Users {
+		user1 := &userv1.User{}
+		errUser := r.Client.Get(ctx, types.NamespacedName{Name: user, Namespace: ""}, user1)
+		for _, grpuser := range group.Users {
+			if user == grpuser {
+				duplicateUser = true
+			}
+		}
+		if !duplicateUser && errUser == nil {
+			group.Users = append(group.Users, user)
+		}
+	}
+	err3 := r.Client.Update(ctx, group)
+	if err3 != nil {
+		log.Error(err3, "group doesnt exist")
+		return ctrl.Result{}, err
+	}
+	//add argocd rbac policy
 	log.Info("in setRBACArgoCDUser")
-	log.Info(req.Name+"-View-CI")
-	newPolicy :="g," +req.Name+"-View-CI,role: " +req.Name+"-view "
-    duplicatePolicy:=false
+	log.Info(req.Name + "-View-CI")
+	newPolicy := "g," + req.Name + "-View-CI,role: " + req.Name + "-view "
+	duplicatePolicy := false
 	for _, line := range strings.Split(found.Data["policy.csv"], "\n") {
-		if newPolicy==line {
-			duplicatePolicy=true
+		if newPolicy == line {
+			duplicatePolicy = true
 		}
 		log.Info(line)
-	 }
-	 if duplicatePolicy== false{
-		found.Data["policy.csv"]=found.Data["policy.csv"]+"\n"+newPolicy
-		err = r.Client.Update(ctx, found)
+	}
+	if duplicatePolicy == false {
+		found.Data["policy.csv"] = found.Data["policy.csv"] + "\n" + newPolicy
+		errRbac := r.Client.Update(ctx, found)
+		if errRbac != nil {
+			log.Error(err3, "error in updating argocd-rbac-cm")
+			return ctrl.Result{}, err
+		}
 	}
 	return ctrl.Result{}, nil
 }
+
 // SetupWithManager sets up the controller with the Manager.
 func (r *TeamReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
