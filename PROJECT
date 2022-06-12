@@ -15,6 +15,6 @@ resources:
   domain: snappcloud.io
   group: team
   kind: Team
-  path: github.com/snapp-incubator/team-operator/api/v1
+  path: github.com/snapp-incubator/team-operator/api/v1alpha1
   version: v1
 version: "3"

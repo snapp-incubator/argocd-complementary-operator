@@ -23,7 +23,7 @@ import (
 	"strings"
 
 	userv1 "github.com/openshift/api/user/v1"
-	teamv1 "github.com/snapp-incubator/team-operator/api/v1"
+	teamv1alpha1 "github.com/snapp-incubator/team-operator/api/v1alpha1"
 	"golang.org/x/crypto/bcrypt"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -69,7 +69,7 @@ func (r *TeamReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 	log := log.FromContext(ctx)
 	reqLogger := log.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
 	reqLogger.Info("Reconciling team")
-	team := &teamv1.Team{}
+	team := &teamv1alpha1.Team{}
 
 	err := r.Client.Get(context.TODO(), req.NamespacedName, team)
 	if err != nil {
@@ -94,7 +94,7 @@ func (r *TeamReconciler) createArgocdStaticAdminUser(ctx context.Context, req ct
 	log := log.FromContext(ctx)
 	reqLogger := log.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
 	reqLogger.Info("Reconciling team")
-	team := &teamv1.Team{}
+	team := &teamv1alpha1.Team{}
 	err := r.Client.Get(context.TODO(), req.NamespacedName, team)
 	if err != nil {
 		log.Error(err, "Failed to get team")
@@ -149,7 +149,7 @@ func (r *TeamReconciler) createArgocdStaticViewUser(ctx context.Context, req ctr
 	log := log.FromContext(ctx)
 	reqLogger := log.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
 	reqLogger.Info("Reconciling team")
-	team := &teamv1.Team{}
+	team := &teamv1alpha1.Team{}
 	err := r.Client.Get(context.TODO(), req.NamespacedName, team)
 	if err != nil {
 		log.Error(err, "Failed to get team")
@@ -208,7 +208,7 @@ func (r *TeamReconciler) setRBACArgoCDAdminUser(ctx context.Context, req ctrl.Re
 	log := log.FromContext(ctx)
 	reqLogger := log.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
 	reqLogger.Info("Reconciling team")
-	team := &teamv1.Team{}
+	team := &teamv1alpha1.Team{}
 	found := &corev1.ConfigMap{}
 	err1 := r.Client.Get(context.TODO(), req.NamespacedName, team)
 	if err1 != nil {
@@ -276,7 +276,7 @@ func (r *TeamReconciler) setRBACArgoCDViewUser(ctx context.Context, req ctrl.Req
 	log := log.FromContext(ctx)
 	reqLogger := log.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
 	reqLogger.Info("Reconciling team")
-	team := &teamv1.Team{}
+	team := &teamv1alpha1.Team{}
 	found := &corev1.ConfigMap{}
 	err1 := r.Client.Get(context.TODO(), req.NamespacedName, team)
 	if err1 != nil {
@@ -344,6 +344,6 @@ func (r *TeamReconciler) setRBACArgoCDViewUser(ctx context.Context, req ctrl.Req
 func (r *TeamReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&teamv1.Team{}).
+		For(&teamv1alpha1.Team{}).
 		Complete(r)
 }
