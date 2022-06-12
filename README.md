@@ -3,7 +3,7 @@ Add Team CRD to be able to create static ArgoCD user for each team.
 
 ## Instructions
 ```
-apiVersion: team.snappcloud.io/v1
+apiVersion: team.snappcloud.io/v1alpha1
 kind: Team
 metadata:
   name: {{teamName}}
