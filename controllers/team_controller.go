@@ -35,7 +35,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-var logf = log.Log.WithName("controller_team")
+const (
+	userArgocdNS          = "user-argocd"
+	userArgocRbacPolicyCM = "argocd-rbac-cm"
+	userArgocStaticUserCM = "argocd-cm"
+)
+
+//var logf = log.Log.WithName("controller_team")
 
 // TeamReconciler reconciles a Team object
 type TeamReconciler struct {
@@ -61,7 +67,7 @@ type TeamReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.9.2/pkg/reconcile
 func (r *TeamReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
-	reqLogger := logf.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
+	reqLogger := log.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
 	reqLogger.Info("Reconciling team")
 	team := &teamv1.Team{}
 
@@ -86,10 +92,14 @@ func (r *TeamReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 }
 func (r *TeamReconciler) createArgocdStaticAdminUser(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
-	reqLogger := logf.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
+	reqLogger := log.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
 	reqLogger.Info("Reconciling team")
 	team := &teamv1.Team{}
 	err := r.Client.Get(context.TODO(), req.NamespacedName, team)
+	if err != nil {
+		log.Error(err, "Failed to get team")
+		return ctrl.Result{}, err
+	}
 
 	log.Info("team is found and teamName is : " + team.Name)
 	//create static admin CI user
@@ -101,8 +111,8 @@ func (r *TeamReconciler) createArgocdStaticAdminUser(ctx context.Context, req ct
 	staticAdminUserByte, _ := json.Marshal(staticAdminUser)
 	err = r.Client.Patch(context.Background(), &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "argocd",
-			Name:      "argocd-cm",
+			Namespace: userArgocdNS,
+			Name:      userArgocStaticUserCM,
 		},
 	}, client.RawPatch(types.StrategicMergePatchType, staticAdminUserByte))
 	if err != nil {
@@ -122,7 +132,7 @@ func (r *TeamReconciler) createArgocdStaticAdminUser(ctx context.Context, req ct
 
 	err = r.Client.Patch(context.Background(), &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "argocd",
+			Namespace: userArgocdNS,
 			Name:      "argocd-secret",
 		},
 	}, client.RawPatch(types.StrategicMergePatchType, staticPassByte))
@@ -137,10 +147,14 @@ func (r *TeamReconciler) createArgocdStaticAdminUser(ctx context.Context, req ct
 
 func (r *TeamReconciler) createArgocdStaticViewUser(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
-	reqLogger := logf.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
+	reqLogger := log.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
 	reqLogger.Info("Reconciling team")
 	team := &teamv1.Team{}
 	err := r.Client.Get(context.TODO(), req.NamespacedName, team)
+	if err != nil {
+		log.Error(err, "Failed to get team")
+		return ctrl.Result{}, err
+	}
 
 	log.Info("team is found and teamName is : " + team.Name)
 	staticViewUser := map[string]map[string]string{
@@ -151,8 +165,8 @@ func (r *TeamReconciler) createArgocdStaticViewUser(ctx context.Context, req ctr
 	staticViewUserByte, _ := json.Marshal(staticViewUser)
 	err = r.Client.Patch(context.Background(), &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "argocd",
-			Name:      "argocd-cm",
+			Namespace: userArgocdNS,
+			Name:      userArgocStaticUserCM,
 		},
 	}, client.RawPatch(types.StrategicMergePatchType, staticViewUserByte))
 	if err != nil {
@@ -173,7 +187,7 @@ func (r *TeamReconciler) createArgocdStaticViewUser(ctx context.Context, req ctr
 
 	err = r.Client.Patch(context.Background(), &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Namespace: "argocd",
+			Namespace: userArgocdNS,
 			Name:      "argocd-secret",
 		},
 	}, client.RawPatch(types.StrategicMergePatchType, staticPassByte))
@@ -192,7 +206,7 @@ func HashPassword(password string) (string, error) {
 
 func (r *TeamReconciler) setRBACArgoCDAdminUser(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
-	reqLogger := logf.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
+	reqLogger := log.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
 	reqLogger.Info("Reconciling team")
 	team := &teamv1.Team{}
 	found := &corev1.ConfigMap{}
@@ -201,7 +215,7 @@ func (r *TeamReconciler) setRBACArgoCDAdminUser(ctx context.Context, req ctrl.Re
 		log.Error(err1, "Failed to get team")
 		return ctrl.Result{}, err1
 	}
-	err := r.Client.Get(ctx, types.NamespacedName{Name: "argocd-rbac-cm", Namespace: "argocd"}, found)
+	err := r.Client.Get(ctx, types.NamespacedName{Name: userArgocRbacPolicyCM, Namespace: userArgocdNS}, found)
 	if err != nil {
 		log.Error(err, "Failed to get cm")
 		return ctrl.Result{}, err
@@ -247,7 +261,7 @@ func (r *TeamReconciler) setRBACArgoCDAdminUser(ctx context.Context, req ctrl.Re
 		}
 		log.Info(line)
 	}
-	if duplicatePolicy == false {
+	if !duplicatePolicy {
 		found.Data["policy.csv"] = found.Data["policy.csv"] + "\n" + newPolicy
 		errRbac := r.Client.Update(ctx, found)
 		if errRbac != nil {
@@ -260,7 +274,7 @@ func (r *TeamReconciler) setRBACArgoCDAdminUser(ctx context.Context, req ctrl.Re
 }
 func (r *TeamReconciler) setRBACArgoCDViewUser(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
-	reqLogger := logf.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
+	reqLogger := log.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
 	reqLogger.Info("Reconciling team")
 	team := &teamv1.Team{}
 	found := &corev1.ConfigMap{}
@@ -269,7 +283,7 @@ func (r *TeamReconciler) setRBACArgoCDViewUser(ctx context.Context, req ctrl.Req
 		log.Error(err1, "Failed to get  team")
 		return ctrl.Result{}, err1
 	}
-	err := r.Client.Get(ctx, types.NamespacedName{Name: "argocd-rbac-cm", Namespace: "argocd"}, found)
+	err := r.Client.Get(ctx, types.NamespacedName{Name: userArgocRbacPolicyCM, Namespace: userArgocdNS}, found)
 	if err != nil {
 		log.Error(err, "Failed to get  cm")
 		return ctrl.Result{}, err
@@ -315,7 +329,7 @@ func (r *TeamReconciler) setRBACArgoCDViewUser(ctx context.Context, req ctrl.Req
 		}
 		log.Info(line)
 	}
-	if duplicatePolicy == false {
+	if !duplicatePolicy {
 		found.Data["policy.csv"] = found.Data["policy.csv"] + "\n" + newPolicy
 		errRbac := r.Client.Update(ctx, found)
 		if errRbac != nil {
