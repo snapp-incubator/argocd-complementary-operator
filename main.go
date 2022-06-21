@@ -35,7 +35,9 @@ import (
 
 	teamv1alpha1 "github.com/snapp-incubator/team-operator/api/v1alpha1"
 	"github.com/snapp-incubator/team-operator/controllers"
+
 	//+kubebuilder:scaffold:imports
+	argov1alpha1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
 )
 
 var (
