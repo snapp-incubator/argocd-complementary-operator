@@ -231,9 +231,9 @@ func (r *TeamReconciler) setRBACArgoCDAdminUser(ctx context.Context, req ctrl.Re
 		log.Error(err2, "Failed get group")
 		return ctrl.Result{}, err
 	}
-	duplicateUser := false
 	//check user exit to add it to group
 	for _, user := range team.Spec.Argo.Admin.Users {
+		duplicateUser := false
 		user1 := &userv1.User{}
 		errUser := r.Client.Get(ctx, types.NamespacedName{Name: user, Namespace: ""}, user1)
 		for _, grpuser := range group.Users {
@@ -308,6 +308,13 @@ func (r *TeamReconciler) setRBACArgoCDViewUser(ctx context.Context, req ctrl.Req
 			if user == grpuser {
 				duplicateUser = true
 			}
+		}
+		if errUser != nil {
+			log.Info("errUserrrrr")
+		}
+
+		if !duplicateUser {
+			log.Info("duplicateUser")
 		}
 		if !duplicateUser && errUser == nil {
 			group.Users = append(group.Users, user)
