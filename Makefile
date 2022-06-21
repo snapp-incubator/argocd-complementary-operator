@@ -96,7 +96,7 @@ build: generate fmt vet ## Build manager binary.
 	go build -o bin/manager main.go
 
 run: manifests generate fmt vet ## Run a controller from your host.
-	go run ./main.go
+	go run ./main.go --kubeconfig ~/ignition-configs/auth/kubeconfig
 
 docker-build: test ## Build docker image with the manager.
 	docker build -t ${IMG} .
