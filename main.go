@@ -32,6 +32,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	userv1 "github.com/openshift/api/user/v1"
+
 	teamv1alpha1 "github.com/snapp-incubator/team-operator/api/v1alpha1"
 	"github.com/snapp-incubator/team-operator/controllers"
 	//+kubebuilder:scaffold:imports
@@ -86,6 +87,13 @@ func main() {
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Team")
+		os.Exit(1)
+	}
+	if err = (&controllers.NamespaceReconciler{
+		Client: mgr.GetClient(),
+		Scheme: mgr.GetScheme(),
+	}).SetupWithManager(mgr); err != nil {
+		setupLog.Error(err, "unable to create controller", "controller", "Namespace")
 		os.Exit(1)
 	}
 	//+kubebuilder:scaffold:builder
