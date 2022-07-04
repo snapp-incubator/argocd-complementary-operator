@@ -1,0 +1,11 @@
+make --dry-run --always-make --keep-going --print-directory
+make: Entering directory `/home/centos/go/src/team-operator'
+[ -f /home/centos/go/src/team-operator/bin/controller-gen ] || { set -e ; TMP_DIR=$(mktemp -d) ; cd $TMP_DIR ; go mod init tmp ; echo "Downloading sigs.k8s.io/controller-tools/cmd/controller-gen@v0.6.1" ; GOBIN=/home/centos/go/src/team-operator/bin go get sigs.k8s.io/controller-tools/cmd/controller-gen@v0.6.1 ; rm -rf $TMP_DIR ; }
+ 
+/home/centos/go/src/team-operator/bin/controller-gen object:headerFile="hack/boilerplate.go.txt" paths="./..."
+ 
+go fmt ./...
+go vet ./...
+go build -o bin/manager main.go
+make: Leaving directory `/home/centos/go/src/team-operator'
+ 

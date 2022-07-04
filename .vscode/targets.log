@@ -1,0 +1,484 @@
+make all --print-data-base --no-builtin-variables --no-builtin-rules --question
+# GNU Make 3.82
+# Built for x86_64-redhat-linux-gnu
+# Copyright (C) 2010  Free Software Foundation, Inc.
+# License GPLv3+: GNU GPL version 3 or later <http://gnu.org/licenses/gpl.html>
+# This is free software: you are free to change and redistribute it.
+# There is NO WARRANTY, to the extent permitted by law.
+ 
+
+# Make data base, printed on Mon Jul  4 07:56:58 2022
+
+# Variables
+
+# automatic
+<D = $(patsubst %/,%,$(dir $<))
+# automatic
+?F = $(notdir $?)
+# makefile (from `Makefile', line 56)
+.SHELLFLAGS = -ec
+# environment
+VSCODE_AGENT_FOLDER = /home/centos/.vscode-server
+# environment
+VSCODE_LOG_NATIVE = false
+# automatic
+?D = $(patsubst %/,%,$(dir $?))
+ 
+# makefile (from `Makefile', line 136)
+PROJECT_DIR := /home/centos/go/src/team-operator
+# automatic
+@D = $(patsubst %/,%,$(dir $@))
+# automatic
+@F = $(notdir $@)
+# default
+MAKE_VERSION := 3.82
+# makefile
+CURDIR := /home/centos/go/src/team-operator
+# makefile (from `Makefile', line 55)
+SHELL = /usr/bin/env bash -o pipefail
+# environment
+VSCODE_NLS_CONFIG = {"locale":"en","availableLanguages":{}}
+# environment
+_ = /usr/bin/make
+# makefile (from `Makefile', line 1)
+MAKEFILE_LIST :=  Makefile
+# environment
+HISTCONTROL = ignoredups
+# makefile (from `Makefile', line 165)
+OPM = ./bin/opm
+# environment
+VSCODE_AMD_ENTRYPOINT = vs/workbench/api/node/extensionHostProcess
+# automatic
+*D = $(patsubst %/,%,$(dir $*))
+# makefile (from `Makefile', line 6)
+VERSION = 0.0.1
+# environment
+VSCODE_VERBOSE_LOGGING = true
+# environment
+LESSOPEN = ||/usr/bin/lesspipe.sh %s
+# environment
+OS_CLOUD = shiftstack
+# environment
+GOPROXY = https://proxy.golang.org,direct
+# makefile (from `Makefile', line 137)
+go-get-tool = @[ -f $(1) ] || { set -e ; TMP_DIR=$$(mktemp -d) ; cd $$TMP_DIR ; go mod init tmp ; echo "Downloading $(2)" ; GOBIN=$(PROJECT_DIR)/bin go get $(2) ; rm -rf $$TMP_DIR ; }
+# environment
+SSH_CONNECTION = 10.20.17.56 65164 172.16.51.122 22
+# environment
+PATH = /home/centos/.vscode-server/bin/4af164ea3a06f701fe3e89a2bcbb421d2026b68f/bin/remote-cli:/home/centos/.krew/bin:/home/centos/.kube/plugins:/home/centos/okd4venv/bin:/home/centos/bin/:/usr/local/go/bin:/home/centos/.krew/bin:/home/centos/.kube/plugins:/home/centos/okd4venv/bin:/home/centos/bin/:/usr/local/go/bin:/usr/local/bin:/usr/bin:/usr/local/sbin:/usr/sbin:/home/centos/.local/bin:/home/centos/bin:/home/centos/.local/bin:/home/centos/bin
+# environment
+XDG_RUNTIME_DIR = /run/user/1000
+# environment
+VIRTUAL_ENV = /home/centos/okd4venv
+# environment
+GOPATH = /home/centos/go
+# environment
+VSCODE_LOG_STACK = false
+# environment
+SELINUX_USE_CURRENT_RANGE = 
+# environment
+KUBECONFIG = /home/centos/ignition-configs/auth/kubeconfig
+# default
+.FEATURES := target-specific order-only second-expansion else-if shortest-stem undefine oneshell archives jobserver check-symlink
+# makefile (from `Makefile', line 123)
+CONTROLLER_GEN = $(shell pwd)/bin/controller-gen
+# makefile (from `Makefile', line 186)
+CATALOG_IMG = $(IMAGE_TAG_BASE)-catalog:v$(VERSION)
+# automatic
+%F = $(notdir $%)
+# makefile (from `Makefile', line 47)
+GOBIN = $(shell go env GOPATH)/bin
+# environment
+no_proxy = localhost,127.0.0.1,.svc,.cluster,.local,.snappcloud.io,.staging-snappcloud.io
+# environment
+VSCODE_PIPE_LOGGING = true
+# makefile (from `Makefile', line 183)
+BUNDLE_IMGS = $(BUNDLE_IMG)
+# environment
+PWD = /home/centos/go/src/team-operator
+# environment
+VSCODE_IPC_HOOK_CLI = /run/user/1000/vscode-ipc-adbb856c-bbac-469e-ad3e-b10cea0a8910.sock
+# environment
+BASE_DOMAIN = staging-snappcloud.io
+# environment
+VSCODE_CWD = /home/centos
+# environment
+GOMODCACHE = /home/centos/go/pkg/mod
+# environment
+HOME = /home/centos
+# environment
+LOGNAME = centos
+# environment
+APPLICATION_INSIGHTS_NO_DIAGNOSTIC_CHANNEL = true
+# automatic
++F = $(notdir $+)
+# environment
+SELINUX_LEVEL_REQUESTED = 
+# environment
+VSCODE_HANDLES_UNCAUGHT_ERRORS = true
+# automatic
+^D = $(patsubst %/,%,$(dir $^))
+# environment
+HOSTNAME = okd4-ts-2-utility
+# environment
+MAKELEVEL := 0
+# makefile (from `Makefile', line 41)
+CRD_OPTIONS = "crd:trivialVersions=true,preserveUnknownFields=false"
+# default
+MAKE = $(MAKE_COMMAND)
+# default
+MAKECMDGOALS := all
+# environment
+SHLVL = 5
+# environment
+ANSIBLE_CONFIG = /home/centos/upi/ansible/ansible.cfg
+# environment
+XDG_SESSION_ID = 100
+# environment
+USER = centos
+# makefile
+.DEFAULT_GOAL := all
+# automatic
+%D = $(patsubst %/,%,$(dir $%))
+# default
+MAKE_COMMAND := make
+# makefile (from `Makefile', line 127)
+KUSTOMIZE = $(shell pwd)/bin/kustomize
+# default
+.VARIABLES := 
+# automatic
+*F = $(notdir $*)
+# makefile (from `Makefile', line 39)
+IMG = controller:latest
+# makefile (from `Makefile', line 25)
+BUNDLE_METADATA_OPTS = $(BUNDLE_CHANNELS) $(BUNDLE_DEFAULT_CHANNEL)
+# makefile
+MAKEFLAGS = Rrqp
+# environment
+MFLAGS = -Rrqp
+# environment
+SSH_CLIENT = 10.20.17.56 65164 22
+# environment
+MAIL = /var/spool/mail/centos
+# automatic
++D = $(patsubst %/,%,$(dir $+))
+# environment
+BROWSER = /home/centos/.vscode-server/bin/4af164ea3a06f701fe3e89a2bcbb421d2026b68f/bin/helpers/browser.sh
+# makefile (from `Makefile', line 131)
+ENVTEST = $(shell pwd)/bin/setup-envtest
+# environment
+REGION = ts-2
+# environment
+VSCODE_HANDLES_SIGPIPE = true
+# default
+MAKEFILES := 
+# automatic
+<F = $(notdir $<)
+# environment
+https_proxy = http://snapp-mirror:TmfBZb68qjGGF6feBdqX@mirror-fra-1.snappcloud.io:30128
+# makefile (from `Makefile', line 36)
+BUNDLE_IMG = $(IMAGE_TAG_BASE)-bundle:v$(VERSION)
+# environment
+LC_ALL = C
+# automatic
+^F = $(notdir $^)
+# environment
+SELINUX_ROLE_REQUESTED = 
+# default
+SUFFIXES := 
+# environment
+HISTSIZE = 1000
+# default
+.INCLUDE_DIRS = /usr/include /usr/local/include /usr/include
+# makefile (from `Makefile', line 32)
+IMAGE_TAG_BASE = snappcloud.io/team-operator
+# environment
+ 
+CLUSTER_ID = okd4
+# default
+.RECIPEPREFIX := 
+# environment
+http_proxy = http://snapp-mirror:TmfBZb68qjGGF6feBdqX@mirror-fra-1.snappcloud.io:30128
+# environment
+LANG = C
+# makefile (from `Makefile', line 43)
+ENVTEST_K8S_VERSION = 1.21
+# environment
+VSCODE_EXTHOST_WILL_SEND_SOCKET = true
+# environment
+OS_CLIENT_CONFIG_FILE = /home/centos/secrets/clouds.yaml
+# variable set hash-table stats:
+# Load=97/1024=9%, Rehash=0, Collisions=11/153=7%
+
+# Pattern-specific Variable Values
+
+# No pattern-specific variable values.
+
+# Directories
+
+# . (device 2049, inode 25799272): 21 files, no impossibilities.
+
+# 21 files, no impossibilities in 1 directories.
+
+# Implicit Rules
+
+# No implicit rules.
+
+# Files
+
+envtest:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+#  recipe to execute (from `Makefile', line 133):
+	$(call go-get-tool,$(ENVTEST),sigs.k8s.io/controller-runtime/tools/setup-envtest@latest)
+
+all: build
+#  Command line target.
+#  Implicit rule search has been done.
+#  File does not exist.
+#  File has been updated.
+#  Needs to be updated (-q is set).
+# variable set hash-table stats:
+# Load=0/32=0%, Rehash=0, Collisions=0/10=0%
+
+catalog-push:
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+#  recipe to execute (from `Makefile', line 203):
+	$(MAKE) docker-push IMG=$(CATALOG_IMG)
+
+docker-build: test
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+#  recipe to execute (from `Makefile', line 102):
+	docker build -t ${IMG} .
+
+.PHONY: bundle bundle-build bundle-push opm catalog-build catalog-push
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+opm:
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+#  recipe to execute (from `Makefile', line 169):
+	@{ \
+	set -e ;\
+	mkdir -p $(dir $(OPM)) ;\
+	OS=$(shell go env GOOS) && ARCH=$(shell go env GOARCH) && \
+	curl -sSLo $(OPM) https://github.com/operator-framework/operator-registry/releases/download/v1.15.1/$${OS}-$${ARCH}-opm ;\
+	chmod +x $(OPM) ;\
+	}
+
+bundle: manifests kustomize
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+#  recipe to execute (from `Makefile', line 151):
+	operator-sdk generate kustomize manifests -q
+	cd config/manager && $(KUSTOMIZE) edit set image controller=$(IMG)
+	$(KUSTOMIZE) build config/manifests | operator-sdk generate bundle -q --overwrite --version $(VERSION) $(BUNDLE_METADATA_OPTS)
+	operator-sdk bundle validate ./bundle
+
+# Not a target:
+.SUFFIXES:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+uninstall: manifests kustomize
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+ 
+#  recipe to execute (from `Makefile', line 113):
+	$(KUSTOMIZE) build config/crd | kubectl delete -f -
+
+# Not a target:
+Makefile:
+#  Implicit rule search has been done.
+#  Last modified 2022-06-28 07:00:12.332266366
+#  File has been updated.
+#  Successfully updated.
+
+test: manifests generate fmt vet envtest
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+#  recipe to execute (from `Makefile', line 91):
+	KUBEBUILDER_ASSETS="$(shell $(ENVTEST) use $(ENVTEST_K8S_VERSION) -p path)" go test ./... -coverprofile cover.out
+
+bundle-push:
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+#  recipe to execute (from `Makefile', line 162):
+	$(MAKE) docker-push IMG=$(BUNDLE_IMG)
+
+catalog-build: opm
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+#  recipe to execute (from `Makefile', line 198):
+	$(OPM) index add --container-tool docker --mode semver --tag $(CATALOG_IMG) --bundles $(BUNDLE_IMGS) $(FROM_INDEX_OPT)
+
+build: generate fmt vet
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has been updated.
+#  Needs to be updated (-q is set).
+# variable set hash-table stats:
+# Load=0/32=0%, Rehash=0, Collisions=0/10=0%
+#  recipe to execute (from `Makefile', line 96):
+	go build -o bin/manager main.go
+
+vet:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+#  recipe to execute (from `Makefile', line 88):
+	go vet ./...
+
+help:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+#  recipe to execute (from `Makefile', line 74):
+	@awk 'BEGIN {FS = ":.*##"; printf "\nUsage:\n  make \033[36m<target>\033[0m\n"} /^[a-zA-Z_0-9-]+:.*?##/ { printf "  \033[36m%-15s\033[0m %s\n", $$1, $$2 } /^##@/ { printf "\n\033[1m%s\033[0m\n", substr($$0, 5) } ' $(MAKEFILE_LIST)
+
+kustomize:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+#  recipe to execute (from `Makefile', line 129):
+	$(call go-get-tool,$(KUSTOMIZE),sigs.k8s.io/kustomize/kustomize/v3@v3.8.7)
+
+generate: controller-gen
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has been updated.
+#  Needs to be updated (-q is set).
+# variable set hash-table stats:
+# Load=0/32=0%, Rehash=0, Collisions=0/10=0%
+#  recipe to execute (from `Makefile', line 82):
+	$(CONTROLLER_GEN) object:headerFile="hack/boilerplate.go.txt" paths="./..."
+
+undeploy:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+#  recipe to execute (from `Makefile', line 120):
+	$(KUSTOMIZE) build config/default | kubectl delete -f -
+
+manifests: controller-gen
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+#  recipe to execute (from `Makefile', line 79):
+	$(CONTROLLER_GEN) $(CRD_OPTIONS) rbac:roleName=manager-role webhook paths="./..." output:crd:artifacts:config=config/crd/bases
+
+# Not a target:
+.DEFAULT:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+
+run: manifests generate fmt vet
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+ 
+#  File has not been updated.
+#  recipe to execute (from `Makefile', line 99):
+	go run ./main.go
+
+bundle-build:
+#  Phony target (prerequisite of .PHONY).
+#  Implicit rule search has not been done.
+#  File does not exist.
+#  File has not been updated.
+#  recipe to execute (from `Makefile', line 158):
+	docker build -f bundle.Dockerfile -t $(BUNDLE_IMG) .
+
+fmt:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+#  recipe to execute (from `Makefile', line 85):
+	go fmt ./...
+
+deploy: manifests kustomize
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+#  recipe to execute (from `Makefile', line 116):
+	cd config/manager && $(KUSTOMIZE) edit set image controller=${IMG}
+	$(KUSTOMIZE) build config/default | kubectl apply -f -
+
+controller-gen:
+#  Implicit rule search has not been done.
+#  Implicit/static pattern stem: `'
+#  File does not exist.
+#  File has been updated.
+#  Needs to be updated (-q is set).
+# automatic
+# @ := controller-gen
+# automatic
+# % := 
+# automatic
+# * := 
+# automatic
+# + := 
+# automatic
+# | := 
+# automatic
+# < := 
+# automatic
+# ^ := 
+# automatic
+# ? := 
+# variable set hash-table stats:
+# Load=8/32=25%, Rehash=0, Collisions=2/18=11%
+#  recipe to execute (from `Makefile', line 125):
+	$(call go-get-tool,$(CONTROLLER_GEN),sigs.k8s.io/controller-tools/cmd/controller-gen@v0.6.1)
+
+docker-push:
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+#  recipe to execute (from `Makefile', line 105):
+	docker push ${IMG}
+
+install: manifests kustomize
+#  Implicit rule search has not been done.
+#  Modification time never checked.
+#  File has not been updated.
+#  recipe to execute (from `Makefile', line 110):
+	$(KUSTOMIZE) build config/crd | kubectl apply -f -
+
+# files hash-table stats:
+# Load=28/1024=3%, Rehash=0, Collisions=4/86=5%
+# VPATH Search Paths
+
+# No `vpath' search paths.
+
+# No general (`VPATH' variable) search path.
+
+# # of strings in strcache: 0 / lookups = 122 / hits = 122
+# # of strcache buffers: 1 (* 8176 B/buffer = 8176 B)
+# strcache used: total = 0 (459) / max = 0 / min = 8176 / avg = 0
+# strcache free: total = 0 (7717) / max = 0 / min = 8176 / avg = 0
+
+# strcache hash-table stats:
+# Load=50/8192=1%, Rehash=0, Collisions=4/122=3%
+# Finished Make data base on Mon Jul  4 07:56:58 2022
+
+ 
