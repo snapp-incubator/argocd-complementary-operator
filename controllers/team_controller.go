@@ -88,7 +88,7 @@ func (r *TeamReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.
 
 	}
 	r.createArgocdStaticAdminUser(ctx, req)
-	r.createArgocdStaticViewUser(ctx, req)
+	// r.createArgocdStaticViewUser(ctx, req)
 
 	return ctrl.Result{}, nil
 }
@@ -226,14 +226,16 @@ func (r *TeamReconciler) setRBACArgoCDAdminUser(ctx context.Context, req ctrl.Re
 	for _, user := range team.Spec.Argo.Admin.Users {
 		log.Info(user)
 	}
+	/// logic should change////////////////////
 	group := &userv1.Group{}
 	groupName := req.Name + "-admin"
 	err2 := r.Client.Get(ctx, types.NamespacedName{Name: groupName, Namespace: ""}, group)
 	if err2 != nil {
 		log.Error(err2, "Failed get group")
+		// maybe we need to create group here ???
 		return ctrl.Result{}, err
 	}
-	//check user exit to add it to group
+	//check user exist to add it to group
 	for _, user := range team.Spec.Argo.Admin.Users {
 		duplicateUser := false
 		user1 := &userv1.User{}
@@ -252,14 +254,15 @@ func (r *TeamReconciler) setRBACArgoCDAdminUser(ctx context.Context, req ctrl.Re
 		log.Error(err3, "group doesnt exist")
 		return ctrl.Result{}, err
 	}
+	/////////////////////////////////////////////////////
 	//add argocd rbac policy
-	log.Info("in setRBACArgoCDUser")
-	log.Info(req.Name + "-Admin-CI")
-	newPolicy := "g," + req.Name + "-Admin-CI,role: : " + req.Name + "-admin"
+	newPolicy := "g," + req.Name + "-Admin-CI, role:" + req.Name + "-admin"
+	log.Info("policy is going to add --> ", newPolicy)
 	duplicatePolicy := false
 	for _, line := range strings.Split(found.Data["policy.csv"], "\n") {
 		if newPolicy == line {
 			duplicatePolicy = true
+			log.Info("duplicate policy")
 		}
 		log.Info(line)
 	}
@@ -272,7 +275,7 @@ func (r *TeamReconciler) setRBACArgoCDAdminUser(ctx context.Context, req ctrl.Re
 		log.Info(fmt.Sprintf("%s", string(foundYaml)))
 	}
 	if !duplicatePolicy {
-		found.Data["policy.csv"] = found.Data["policy.csv"] + "\n" + newPolicy
+		found.Data["policy.csv"] = found.Data["policy.csv"] + newPolicy
 		errRbac := r.Client.Update(ctx, found)
 		if errRbac != nil {
 			log.Error(err3, "error in updating argocd-rbac-cm")
