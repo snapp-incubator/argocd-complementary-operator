@@ -257,7 +257,7 @@ func (r *TeamReconciler) setRBACArgoCDAdminUser(ctx context.Context, req ctrl.Re
 	/////////////////////////////////////////////////////
 	//add argocd rbac policy
 	newPolicy := "g," + req.Name + "-Admin-CI, role:" + req.Name + "-admin"
-	log.Info("policy is going to add --> ", newPolicy)
+	log.Info(newPolicy)
 	duplicatePolicy := false
 	for _, line := range strings.Split(found.Data["policy.csv"], "\n") {
 		if newPolicy == line {
