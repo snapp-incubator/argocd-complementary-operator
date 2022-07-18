@@ -257,7 +257,6 @@ func (r *TeamReconciler) setRBACArgoCDAdminUser(ctx context.Context, req ctrl.Re
 	/////////////////////////////////////////////////////
 	//add argocd rbac policy
 	newPolicy := "g, " + req.Name + "-Admin-CI, role:" + req.Name + "-admin"
-	log.Info(newPolicy)
 	duplicatePolicy := false
 	for _, line := range strings.Split(found.Data["policy.csv"], "\n") {
 		if newPolicy == line {
@@ -275,19 +274,12 @@ func (r *TeamReconciler) setRBACArgoCDAdminUser(ctx context.Context, req ctrl.Re
 		log.Info(fmt.Sprintf("%s", string(foundYaml)))
 	}
 	if !duplicatePolicy {
-		found.Data["policy.csv"] = found.Data["policy.csv"] + newPolicy
-		a := found.Data["policy.csv"] + newPolicy
-		b := found.Data["policy.csv"] + "\n" + newPolicy
-		log.Info("FROM HEREEEEE")
-		log.Info(a)
-		log.Info(b)
-
-		log.Info("TO HEREEEEE")
-		// errRbac := r.Client.Update(ctx, found)
-		// if errRbac != nil {
-		// 	log.Error(err3, "error in updating argocd-rbac-cm")
-		// 	return ctrl.Result{}, err
-		// }
+		found.Data["policy.csv"] = found.Data["policy.csv"] + "\n" + newPolicy
+		errRbac := r.Client.Update(ctx, found)
+		if errRbac != nil {
+			log.Error(err3, "error in updating argocd-rbac-cm")
+			return ctrl.Result{}, err
+		}
 	}
 
 	return ctrl.Result{}, nil
