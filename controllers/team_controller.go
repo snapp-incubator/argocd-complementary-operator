@@ -18,12 +18,14 @@ package controllers
 
 import (
 	"context"
+	b64 "encoding/base64"
 	"strings"
 
 	userv1 "github.com/openshift/api/user/v1"
 	teamv1alpha1 "github.com/snapp-incubator/team-operator/api/v1alpha1"
 	"golang.org/x/crypto/bcrypt"
 	corev1 "k8s.io/api/core/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -32,9 +34,10 @@ import (
 )
 
 const (
-	userArgocdNS          = "user-argocd"
-	userArgocRbacPolicyCM = "argocd-rbac-cm"
-	userArgocStaticUserCM = "argocd-cm"
+	userArgocdNS           = "user-argocd"
+	userArgocdRbacPolicyCM = "argocd-rbac-cm"
+	userArgocdStaticUserCM = "argocd-cm"
+	userArgocdSecret       = "argocd-secret"
 )
 
 // TeamReconciler reconciles a Team object
@@ -60,13 +63,6 @@ type TeamReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.9.2/pkg/reconcile
 func (r *TeamReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-
-	r.createArgocdStaticUser(ctx, req, "admin")
-
-	return ctrl.Result{}, nil
-}
-
-func (r *TeamReconciler) createArgocdStaticUser(ctx context.Context, req ctrl.Request, roleName string) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 	team := &teamv1alpha1.Team{}
 	err := r.Client.Get(context.TODO(), req.NamespacedName, team)
@@ -74,55 +70,80 @@ func (r *TeamReconciler) createArgocdStaticUser(ctx context.Context, req ctrl.Re
 		log.Error(err, "Failed to get team")
 		return ctrl.Result{}, err
 	}
-	log.Info("team is found and teamName is : " + team.Name)
 
-	ciPass := team.Spec.Argo.Admin.CIPass
-	argoUsers := team.Spec.Argo.Admin.Users
-	if roleName == "view" {
-		ciPass = team.Spec.Argo.View.CIPass
-		argoUsers = team.Spec.Argo.View.Users
-	}
+	r.createArgocdStaticUser(ctx, req, team, "admin", team.Spec.Argo.Admin.CIPass, team.Spec.Argo.Admin.Users)
+	r.createArgocdStaticUser(ctx, req, team, "view", team.Spec.Argo.View.CIPass, team.Spec.Argo.View.Users)
+	r.AddArgocdRBACPolicy(ctx, team)
 
-	configMap := &corev1.ConfigMap{}
-	err = r.Client.Get(ctx, types.NamespacedName{Name: userArgocStaticUserCM, Namespace: userArgocdNS}, configMap)
+	return ctrl.Result{}, nil
+}
+
+func (r *TeamReconciler) createArgocdStaticUser(ctx context.Context, req ctrl.Request, team *teamv1alpha1.Team, roleName string, ciPass string, argoUsers []string) (ctrl.Result, error) {
+	err := r.UpdateUserArgocdConfig(ctx, team, roleName, ciPass)
 	if err != nil {
-		log.Error(err, "Failed to get configMap")
 		return ctrl.Result{}, err
 	}
+	err = r.AddArgoUsersToGroup(ctx, team, roleName, argoUsers)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
+	return ctrl.Result{}, nil
+}
+
+func (r *TeamReconciler) UpdateUserArgocdConfig(ctx context.Context, team *teamv1alpha1.Team, roleName string, ciPass string) error {
+	log := log.FromContext(ctx)
+	configMap := &corev1.ConfigMap{}
+	err := r.Client.Get(ctx, types.NamespacedName{Name: userArgocdStaticUserCM, Namespace: userArgocdNS}, configMap)
+	if err != nil {
+		log.Error(err, "Failed to get configMap")
+		return err
+	}
 	patch := client.MergeFrom(configMap.DeepCopy())
-	configMap.Data["accounts."+req.Name+"-"+roleName+"-CI"] = "apiKey,login"
+	configMap.Data["accounts."+team.Name+"-"+roleName+"-ci"] = "apiKey,login"
 	err = r.Patch(ctx, configMap, patch)
 	if err != nil {
 		log.Error(err, "Failed to patch cm")
-		return ctrl.Result{}, err
+		return err
 	}
 
-	/// do we need to hash the password?
-	//set password to the user
-	// hash, _ := HashPassword(ciPass) // ignore error for the sake of simplicity
-	// encodedPass := b64.StdEncoding.EncodeToString([]byte(hash))
+	hash, _ := HashPassword(ciPass) // ignore error for the sake of simplicity
+	encodedPass := b64.StdEncoding.EncodeToString([]byte(hash))
 
 	secret := &corev1.Secret{}
-	err = r.Client.Get(ctx, types.NamespacedName{Name: "argocd-secret", Namespace: userArgocdNS}, secret)
+	err = r.Client.Get(ctx, types.NamespacedName{Name: userArgocdSecret, Namespace: userArgocdNS}, secret)
 	if err != nil {
 		log.Error(err, "Failed to get secret")
-		return ctrl.Result{}, err
+		return err
 	}
 	patch = client.MergeFrom(secret.DeepCopy())
-	secret.Data["accounts."+req.Name+"-"+roleName+"-CI.password"] = []byte(ciPass)
+	secret.Data["accounts."+team.Name+"-"+roleName+"-ci.password"] = []byte(encodedPass)
 	err = r.Patch(ctx, secret, patch)
 	if err != nil {
 		log.Error(err, "Failed to patch secret")
-		return ctrl.Result{}, err
+		return err
 	}
+	return nil
+}
 
+func (r *TeamReconciler) AddArgoUsersToGroup(ctx context.Context, team *teamv1alpha1.Team, roleName string, argoUsers []string) error {
+	log := log.FromContext(ctx)
 	group := &userv1.Group{}
-	groupName := req.Name + "-" + roleName
-	err = r.Client.Get(ctx, types.NamespacedName{Name: groupName}, group)
+	groupName := team.Name + "-" + roleName
+	err := r.Client.Get(ctx, types.NamespacedName{Name: groupName}, group)
 	if err != nil {
 		log.Error(err, "Failed get group")
-		// maybe we need to create group here ???
-		return ctrl.Result{}, err
+		// create group
+		group = &userv1.Group{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: groupName,
+			},
+		}
+		err = r.Client.Create(ctx, group)
+		if err != nil {
+			log.Error(err, "Failed to create group")
+			return err
+		}
+		log.Info("group is created")
 	}
 	//check user exist to add it to group
 	argoUser := &userv1.User{}
@@ -141,35 +162,59 @@ func (r *TeamReconciler) createArgocdStaticUser(ctx context.Context, req ctrl.Re
 	err = r.Client.Update(ctx, group)
 	if err != nil {
 		log.Error(err, "Failed to update group")
-		return ctrl.Result{}, err
+		return err
 	}
+	return nil
+}
 
+func (r *TeamReconciler) AddArgocdRBACPolicy(ctx context.Context, team *teamv1alpha1.Team) error {
+	log := log.FromContext(ctx)
 	found := &corev1.ConfigMap{}
-	err = r.Client.Get(ctx, types.NamespacedName{Name: userArgocRbacPolicyCM, Namespace: userArgocdNS}, found)
+	err := r.Client.Get(ctx, types.NamespacedName{Name: userArgocdRbacPolicyCM, Namespace: userArgocdNS}, found)
 	if err != nil {
 		log.Error(err, "Failed to get cm")
-		return ctrl.Result{}, err
+		return err
 	}
 
-	//add argocd rbac policy
-	newPolicy := "g, " + req.Name + "-" + roleName + "-CI, role:" + req.Name + "-" + roleName
-	duplicatePolicy := false
-	for _, line := range strings.Split(found.Data["policy.csv"], "\n") {
-		if newPolicy == line {
-			duplicatePolicy = true
-			log.Info("duplicate policy")
-		}
-		log.Info(line)
+	policies := []string{
+		"g, " + team.Name + "-admin-ci, role:" + team.Name + "-admin",
+		"g, " + team.Name + "-view-ci, role:" + team.Name + "-view",
+		"p, role:" + team.Name + "-admin, repositories, create, " + team.Name + "/*, allow",
+		"p, role:" + team.Name + "-admin, repositories, delete, " + team.Name + "/*, allow",
+		"p, role:" + team.Name + "-admin, repositories, update, " + team.Name + "/*, allow",
+		"p, role:" + team.Name + "-view, repositories, get, " + team.Name + "/*, allow",
+		"p, role:" + team.Name + "-admin, exec, create, *, allow",
+		"g, " + team.Name + "-admin, role:" + team.Name + "-admin",
+		"g, " + team.Name + "-admin, role:" + team.Name + "-view",
+		"g, " + team.Name + "-admin, role:common",
+		"g, " + team.Name + "-view, role:common",
+		"g, " + team.Name + "-view, role:" + team.Name + "-view",
+		"g, " + team.Name + "-view, role:" + team.Name + "-admin",
 	}
-	if !duplicatePolicy {
-		found.Data["policy.csv"] = found.Data["policy.csv"] + "\n" + newPolicy
+	log.Info("policies are : " + strings.Join(policies, ","))
+
+	//add argocd rbac policy
+	is_changed := false
+	for _, policy := range policies {
+		duplicatePolicy := false
+		for _, line := range strings.Split(found.Data["policy.csv"], "\n") {
+			if policy == line {
+				duplicatePolicy = true
+			}
+		}
+		if !duplicatePolicy {
+			found.Data["policy.csv"] = found.Data["policy.csv"] + "\n" + policy
+			is_changed = true
+		}
+	}
+	if is_changed {
 		errRbac := r.Client.Update(ctx, found)
 		if errRbac != nil {
 			log.Error(err, "error in updating argocd-rbac-cm")
-			return ctrl.Result{}, err
+			return err
 		}
 	}
-	return ctrl.Result{}, nil
+	return nil
 }
 
 func HashPassword(password string) (string, error) {
