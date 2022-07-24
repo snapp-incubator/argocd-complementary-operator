@@ -1,6 +1,6 @@
 module github.com/snapp-incubator/team-operator
 
-go 1.16
+go 1.17
 
 require (
 	github.com/argoproj/argo-cd/v2 v2.0.5
