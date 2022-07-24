@@ -18,7 +18,6 @@ package controllers
 
 import (
 	"context"
-	"fmt"
 	"strings"
 
 	userv1 "github.com/openshift/api/user/v1"
@@ -30,7 +29,6 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-	yaml "sigs.k8s.io/yaml"
 )
 
 const (
@@ -38,8 +36,6 @@ const (
 	userArgocRbacPolicyCM = "argocd-rbac-cm"
 	userArgocStaticUserCM = "argocd-cm"
 )
-
-//var logf = log.Log.WithName("controller_team")
 
 // TeamReconciler reconciles a Team object
 type TeamReconciler struct {
@@ -64,36 +60,14 @@ type TeamReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.9.2/pkg/reconcile
 func (r *TeamReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	// log := log.FromContext(ctx)
-	// reqLogger := log.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
-	// reqLogger.Info("Reconciling team")
-	// team := &teamv1alpha1.Team{}
 
-	// err := r.Client.Get(context.TODO(), req.NamespacedName, team)
-	// if err != nil {
-	// 	if errors.IsNotFound(err) {
-	// 		// Request object not found, could have been deleted after reconcile request.
-	// 		// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
-	// 		// Return and don't requeue
-	// 		return ctrl.Result{}, nil
-	// 	}
-	// 	// Error reading the object - requeue the request.
-	// 	return ctrl.Result{}, err
-	// } else {
-	// 	log.Info("team is found and teamName is : " + team.Name)
-
-	// }
 	r.createArgocdStaticUser(ctx, req, "admin")
-	// r.createArgocdStaticAdminUser(ctx, req)
-	// r.createArgocdStaticViewUser(ctx, req)
 
 	return ctrl.Result{}, nil
 }
 
 func (r *TeamReconciler) createArgocdStaticUser(ctx context.Context, req ctrl.Request, roleName string) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
-	// reqLogger := log.WithValues("Request.Namespace", req.Namespace, "Request.Name", req.Name)
-	// reqLogger.Info("Reconciling team")
 	team := &teamv1alpha1.Team{}
 	err := r.Client.Get(context.TODO(), req.NamespacedName, team)
 	if err != nil {
@@ -102,10 +76,10 @@ func (r *TeamReconciler) createArgocdStaticUser(ctx context.Context, req ctrl.Re
 	}
 	log.Info("team is found and teamName is : " + team.Name)
 
-	ciPass := team.Spec.Argo.Admin.CIPass
+	// ciPass := team.Spec.Argo.Admin.CIPass
 	argoUsers := team.Spec.Argo.Admin.Users
 	if roleName == "view" {
-		ciPass = team.Spec.Argo.View.CIPass
+		// ciPass = team.Spec.Argo.View.CIPass
 		argoUsers = team.Spec.Argo.View.Users
 	}
 
@@ -142,30 +116,21 @@ func (r *TeamReconciler) createArgocdStaticUser(ctx context.Context, req ctrl.Re
 		return ctrl.Result{}, err
 	}
 
-	////////////////////
-	found := &corev1.ConfigMap{}
-	err = r.Client.Get(ctx, types.NamespacedName{Name: userArgocRbacPolicyCM, Namespace: userArgocdNS}, found)
-	if err != nil {
-		log.Error(err, "Failed to get cm")
-		return ctrl.Result{}, err
-	}
-
-	/// logic should change////////////////////
 	group := &userv1.Group{}
 	groupName := req.Name + "-" + roleName
-	err = r.Client.Get(ctx, types.NamespacedName{Name: groupName, Namespace: ""}, group)
+	err = r.Client.Get(ctx, types.NamespacedName{Name: groupName}, group)
 	if err != nil {
 		log.Error(err, "Failed get group")
 		// maybe we need to create group here ???
 		return ctrl.Result{}, err
 	}
 	//check user exist to add it to group
+	argoUser := &userv1.User{}
 	for _, user := range argoUsers {
 		duplicateUser := false
-		user1 := &userv1.User{}
-		errUser := r.Client.Get(ctx, types.NamespacedName{Name: user, Namespace: ""}, user1)
-		for _, grpuser := range group.Users {
-			if user == grpuser {
+		errUser := r.Client.Get(ctx, types.NamespacedName{Name: user}, argoUser)
+		for _, groupuser := range group.Users {
+			if argoUser.Name == groupuser {
 				duplicateUser = true
 			}
 		}
@@ -175,10 +140,17 @@ func (r *TeamReconciler) createArgocdStaticUser(ctx context.Context, req ctrl.Re
 	}
 	err = r.Client.Update(ctx, group)
 	if err != nil {
-		log.Error(err, "group doesnt exist")
+		log.Error(err, "Failed to update group")
 		return ctrl.Result{}, err
 	}
-	/////////////////////////////////////////////////////
+
+	found := &corev1.ConfigMap{}
+	err = r.Client.Get(ctx, types.NamespacedName{Name: userArgocRbacPolicyCM, Namespace: userArgocdNS}, found)
+	if err != nil {
+		log.Error(err, "Failed to get cm")
+		return ctrl.Result{}, err
+	}
+
 	//add argocd rbac policy
 	newPolicy := "g, " + req.Name + "-" + roleName + "-CI, role:" + req.Name + "-" + roleName
 	duplicatePolicy := false
@@ -189,23 +161,14 @@ func (r *TeamReconciler) createArgocdStaticUser(ctx context.Context, req ctrl.Re
 		}
 		log.Info(line)
 	}
-	if foundYaml, err := yaml.Marshal(found); err != nil {
-		log.Error(err, "marshal failed")
-	} else {
-		log.Info("--------------------------------------")
-		log.Info(fmt.Sprintf("%+v", foundYaml))
-		log.Info("--------------------------------------")
-		log.Info(fmt.Sprintf("%s", string(foundYaml)))
-	}
 	if !duplicatePolicy {
 		found.Data["policy.csv"] = found.Data["policy.csv"] + "\n" + newPolicy
 		errRbac := r.Client.Update(ctx, found)
 		if errRbac != nil {
-			log.Error(err3, "error in updating argocd-rbac-cm")
+			log.Error(err, "error in updating argocd-rbac-cm")
 			return ctrl.Result{}, err
 		}
 	}
-
 	return ctrl.Result{}, nil
 }
 
