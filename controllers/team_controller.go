@@ -76,10 +76,10 @@ func (r *TeamReconciler) createArgocdStaticUser(ctx context.Context, req ctrl.Re
 	}
 	log.Info("team is found and teamName is : " + team.Name)
 
-	// ciPass := team.Spec.Argo.Admin.CIPass
+	ciPass := team.Spec.Argo.Admin.CIPass
 	argoUsers := team.Spec.Argo.Admin.Users
 	if roleName == "view" {
-		// ciPass = team.Spec.Argo.View.CIPass
+		ciPass = team.Spec.Argo.View.CIPass
 		argoUsers = team.Spec.Argo.View.Users
 	}
 
