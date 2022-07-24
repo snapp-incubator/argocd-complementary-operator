@@ -19,15 +19,6 @@ spec:
       users:
       - user1
       - user2
-  grafana:
-    admin:
-     users:
-     - user1
-     - user2
-    view:
-      users:
-       - user1
-       - user2
 ```
 ### Development
 
