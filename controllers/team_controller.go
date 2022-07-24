@@ -20,6 +20,7 @@ import (
 	"context"
 	b64 "encoding/base64"
 	"encoding/json"
+	"fmt"
 	"strings"
 
 	userv1 "github.com/openshift/api/user/v1"
@@ -33,6 +34,7 @@ import (
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	yaml "sigs.k8s.io/yaml"
 )
 
 const (
@@ -231,9 +233,9 @@ func (r *TeamReconciler) setRBACArgoCDAdminUser(ctx context.Context, req ctrl.Re
 		log.Error(err2, "Failed get group")
 		return ctrl.Result{}, err
 	}
-	duplicateUser := false
 	//check user exit to add it to group
 	for _, user := range team.Spec.Argo.Admin.Users {
+		duplicateUser := false
 		user1 := &userv1.User{}
 		errUser := r.Client.Get(ctx, types.NamespacedName{Name: user, Namespace: ""}, user1)
 		for _, grpuser := range group.Users {
@@ -260,6 +262,14 @@ func (r *TeamReconciler) setRBACArgoCDAdminUser(ctx context.Context, req ctrl.Re
 			duplicatePolicy = true
 		}
 		log.Info(line)
+	}
+	if foundYaml, err := yaml.Marshal(found); err != nil {
+		log.Error(err, "marshal failed")
+	} else {
+		log.Info("--------------------------------------")
+		log.Info(fmt.Sprintf("%+v", foundYaml))
+		log.Info("--------------------------------------")
+		log.Info(fmt.Sprintf("%s", string(foundYaml)))
 	}
 	if !duplicatePolicy {
 		found.Data["policy.csv"] = found.Data["policy.csv"] + "\n" + newPolicy
@@ -299,9 +309,9 @@ func (r *TeamReconciler) setRBACArgoCDViewUser(ctx context.Context, req ctrl.Req
 		log.Error(err2, "Failed get group")
 		return ctrl.Result{}, err
 	}
-	duplicateUser := false
 	//check user exit to add it to group
 	for _, user := range team.Spec.Argo.View.Users {
+		duplicateUser := false
 		user1 := &userv1.User{}
 		errUser := r.Client.Get(ctx, types.NamespacedName{Name: user, Namespace: ""}, user1)
 		for _, grpuser := range group.Users {
@@ -330,13 +340,20 @@ func (r *TeamReconciler) setRBACArgoCDViewUser(ctx context.Context, req ctrl.Req
 		log.Info(line)
 	}
 	if !duplicatePolicy {
-		found.Data["policy.csv"] = found.Data["policy.csv"] + "\n" + newPolicy
+		found.Data["policy.csv"]=fmt.Sprintf("\n%v\n%s", string(found.Data["policy.csv"]),newPolicy)
+		//found.Data["policy.csv"] = found.Data["policy.csv"] + "\n" + newPolicy
 		errRbac := r.Client.Update(ctx, found)
 		if errRbac != nil {
 			log.Error(err3, "error in updating argocd-rbac-cm")
 			return ctrl.Result{}, err
 		}
 	}
+
+	foundYaml, err := yaml.Marshal(found)
+	if err != nil {
+		log.Error(err, "marshal failed")
+	}
+	found.Data["policy.csv"] = fmt.Sprintf("%s%v  '  '", string(foundYaml), '\n')
 	return ctrl.Result{}, nil
 }
 

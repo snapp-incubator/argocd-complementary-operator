@@ -1,7 +1,0 @@
-
-apiVersion: team.snappcloud.io/v1
-kind: Team
-metadata:
-  name: dispatching
-spec:
-  teamAdmin: parham.alvani

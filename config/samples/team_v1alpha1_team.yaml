@@ -1,0 +1,18 @@
+apiVersion: team.snappcloud.io/v1alpha1
+kind: Team
+metadata:
+  name: teamname
+  namespace: team-operator-system
+spec:
+  argo:
+    admin:
+      ciPass: test
+      users:
+      - yegane.ahmandejad
+      - ali.mo
+    view:
+      ciPass: test
+      users:
+      - sadegh.tabasi
+      - ali.mko
+      - s.rezaei
