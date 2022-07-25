@@ -23,4 +23,5 @@ testbin/*
 *.swp
 *.swo
 *~
+# VSCode
 .vscode
