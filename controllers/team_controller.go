@@ -19,6 +19,7 @@ package controllers
 import (
 	"context"
 	b64 "encoding/base64"
+	"encoding/json"
 	"strings"
 
 	userv1 "github.com/openshift/api/user/v1"
@@ -109,20 +110,25 @@ func (r *TeamReconciler) UpdateUserArgocdConfig(ctx context.Context, team *teamv
 	hash, _ := HashPassword(ciPass) // ignore error for the sake of simplicity
 	encodedPass := b64.StdEncoding.EncodeToString([]byte(hash))
 
-	secret := &corev1.Secret{}
-	err = r.Client.Get(ctx, types.NamespacedName{Name: userArgocdSecret, Namespace: userArgocdNS}, secret)
-	if err != nil {
-		log.Error(err, "Failed to get secret")
-		return err
+	staticPassword := map[string]map[string]string{
+		"data": {
+			"accounts." + team.Name + "-" + roleName + "-ci.password": encodedPass,
+		},
 	}
-	patch = client.MergeFrom(secret.DeepCopy())
-	secret.Data["accounts."+team.Name+"-"+roleName+"-ci.password"] = []byte(encodedPass)
-	err = r.Patch(ctx, secret, patch)
+	staticPassByte, _ := json.Marshal(staticPassword)
+
+	err = r.Client.Patch(context.Background(), &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Namespace: userArgocdNS,
+			Name:      "argocd-secret",
+		},
+	}, client.RawPatch(types.StrategicMergePatchType, staticPassByte))
 	if err != nil {
 		log.Error(err, "Failed to patch secret")
 		return err
 	}
 	return nil
+
 }
 
 func (r *TeamReconciler) AddArgoUsersToGroup(ctx context.Context, team *teamv1alpha1.Team, roleName string, argoUsers []string) error {
@@ -131,7 +137,7 @@ func (r *TeamReconciler) AddArgoUsersToGroup(ctx context.Context, team *teamv1al
 	groupName := team.Name + "-" + roleName
 	err := r.Client.Get(ctx, types.NamespacedName{Name: groupName}, group)
 	if err != nil {
-		log.Error(err, "Failed get group")
+		log.Info("Failed get group, going to create group")
 		// create group
 		group = &userv1.Group{
 			ObjectMeta: metav1.ObjectMeta{
@@ -143,7 +149,6 @@ func (r *TeamReconciler) AddArgoUsersToGroup(ctx context.Context, team *teamv1al
 			log.Error(err, "Failed to create group")
 			return err
 		}
-		log.Info("group is created")
 	}
 	//check user exist to add it to group
 	argoUser := &userv1.User{}
@@ -189,9 +194,7 @@ func (r *TeamReconciler) AddArgocdRBACPolicy(ctx context.Context, team *teamv1al
 		"g, " + team.Name + "-admin, role:common",
 		"g, " + team.Name + "-view, role:common",
 		"g, " + team.Name + "-view, role:" + team.Name + "-view",
-		"g, " + team.Name + "-view, role:" + team.Name + "-admin",
 	}
-	log.Info("policies are : " + strings.Join(policies, ","))
 
 	//add argocd rbac policy
 	is_changed := false
