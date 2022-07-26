@@ -340,7 +340,7 @@ func (r *TeamReconciler) setRBACArgoCDViewUser(ctx context.Context, req ctrl.Req
 		log.Info(line)
 	}
 	if !duplicatePolicy {
-		found.Data["policy.csv"]=fmt.Sprintf("\n%v\n%s", string(found.Data["policy.csv"]),newPolicy)
+		found.Data["policy.csv"] = fmt.Sprintf("\n%v\n%s", string(found.Data["policy.csv"]), newPolicy)
 		//found.Data["policy.csv"] = found.Data["policy.csv"] + "\n" + newPolicy
 		errRbac := r.Client.Update(ctx, found)
 		if errRbac != nil {
