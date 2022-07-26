@@ -150,20 +150,8 @@ func (r *TeamReconciler) AddArgoUsersToGroup(ctx context.Context, team *teamv1al
 			return err
 		}
 	}
-	//check user exist to add it to group
-	argoUser := &userv1.User{}
-	for _, user := range argoUsers {
-		duplicateUser := false
-		errUser := r.Client.Get(ctx, types.NamespacedName{Name: user}, argoUser)
-		for _, groupuser := range group.Users {
-			if argoUser.Name == groupuser {
-				duplicateUser = true
-			}
-		}
-		if !duplicateUser && errUser == nil {
-			group.Users = append(group.Users, user)
-		}
-	}
+
+	group.Users = argoUsers
 	err = r.Client.Update(ctx, group)
 	if err != nil {
 		log.Error(err, "Failed to update group")
