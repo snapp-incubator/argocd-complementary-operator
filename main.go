@@ -46,7 +46,6 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
-
 	utilruntime.Must(argocduserv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(userv1.AddToScheme(scheme))
 
