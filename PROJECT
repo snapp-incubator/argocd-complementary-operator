@@ -5,7 +5,7 @@ plugins:
   manifests.sdk.operatorframework.io/v2: {}
   scorecard.sdk.operatorframework.io/v2: {}
   sdk.x-openshift.io/v1: {}
-projectName: team-operator
+projectName: argocduser-operator
 repo: github.com/snapp-incubator/team-operator
 resources:
 - api:
@@ -13,8 +13,8 @@ resources:
     namespaced: true
   controller: true
   domain: snappcloud.io
-  group: team
-  kind: Team
+  group: argocduser
+  kind: ArgocdUser
   path: github.com/snapp-incubator/team-operator/api/v1alpha1
   version: v1
 - controller: true

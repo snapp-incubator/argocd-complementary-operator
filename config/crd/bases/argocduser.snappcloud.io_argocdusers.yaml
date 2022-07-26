@@ -6,20 +6,20 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.6.1
   creationTimestamp: null
-  name: teams.team.snappcloud.io
+  name: argocdusers.argocduser.snappcloud.io
 spec:
-  group: team.snappcloud.io
+  group: argocduser.snappcloud.io
   names:
-    kind: Team
-    listKind: TeamList
-    plural: teams
-    singular: team
+    kind: ArgocdUser
+    listKind: ArgocdUserList
+    plural: argocdusers
+    singular: argocduser
   scope: Namespaced
   versions:
   - name: v1alpha1
     schema:
       openAPIV3Schema:
-        description: Team is the Schema for the teams API
+        description: ArgocdUser is the Schema for the ArgocdUsers API
         properties:
           apiVersion:
             description: 'APIVersion defines the versioned schema of this representation
@@ -34,41 +34,36 @@ spec:
           metadata:
             type: object
           spec:
-            description: TeamSpec defines the desired state of Team
+            description: ArgocdUserSpec defines the desired state of ArgocdUser
             properties:
-              argo:
-                description: Foo is an example field of Team. Edit team_types.go to
-                  remove/update
+              admin:
+                description: 'INSERT ADDITIONAL STATUS FIELD - define observed state
+                  of cluster Important: Run "make" to regenerate code after modifying
+                  this file'
                 properties:
-                  admin:
+                  ciPass:
                     description: 'INSERT ADDITIONAL STATUS FIELD - define observed
                       state of cluster Important: Run "make" to regenerate code after
                       modifying this file'
-                    properties:
-                      ciPass:
-                        description: 'INSERT ADDITIONAL STATUS FIELD - define observed
-                          state of cluster Important: Run "make" to regenerate code
-                          after modifying this file'
-                        type: string
-                      users:
-                        description: ArgocdToken string `json:"argocdToken,omitempty"`
-                        items:
-                          type: string
-                        type: array
-                    type: object
-                  view:
-                    properties:
-                      ciPass:
-                        description: 'INSERT ADDITIONAL STATUS FIELD - define observed
-                          state of cluster Important: Run "make" to regenerate code
-                          after modifying this file'
-                        type: string
-                      users:
-                        description: ArgocdToken string `json:"argocdToken,omitempty"`
-                        items:
-                          type: string
-                        type: array
-                    type: object
+                    type: string
+                  users:
+                    description: ArgocdToken string `json:"argocdToken,omitempty"`
+                    items:
+                      type: string
+                    type: array
+                type: object
+              view:
+                properties:
+                  ciPass:
+                    description: 'INSERT ADDITIONAL STATUS FIELD - define observed
+                      state of cluster Important: Run "make" to regenerate code after
+                      modifying this file'
+                    type: string
+                  users:
+                    description: ArgocdToken string `json:"argocdToken,omitempty"`
+                    items:
+                      type: string
+                    type: array
                 type: object
             type: object
         type: object

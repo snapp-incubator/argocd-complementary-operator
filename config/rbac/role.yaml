@@ -31,9 +31,9 @@ rules:
   - update
   - watch
 - apiGroups:
-  - ""
+  - argocduser.snappcloud.io
   resources:
-  - namespaces
+  - argocdusers
   verbs:
   - create
   - delete
@@ -43,41 +43,15 @@ rules:
   - update
   - watch
 - apiGroups:
-  - ""
+  - argocduser.snappcloud.io
   resources:
-  - namespaces/finalizers
+  - argocdusers/finalizers
   verbs:
   - update
 - apiGroups:
-  - ""
+  - argocduser.snappcloud.io
   resources:
-  - namespaces/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - team.snappcloud.io
-  resources:
-  - teams
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - team.snappcloud.io
-  resources:
-  - teams/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - team.snappcloud.io
-  resources:
-  - teams/status
+  - argocdusers/status
   verbs:
   - get
   - patch

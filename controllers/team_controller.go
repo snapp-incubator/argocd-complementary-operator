@@ -23,9 +23,10 @@ import (
 	"strings"
 
 	userv1 "github.com/openshift/api/user/v1"
-	teamv1alpha1 "github.com/snapp-incubator/team-operator/api/v1alpha1"
+	argocduserv1alpha1 "github.com/snapp-incubator/team-operator/api/v1alpha1"
 	"golang.org/x/crypto/bcrypt"
 	corev1 "k8s.io/api/core/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
@@ -41,15 +42,15 @@ const (
 	userArgocdSecret       = "argocd-secret"
 )
 
-// TeamReconciler reconciles a Team object
-type TeamReconciler struct {
+// ArgocdUserReconciler reconciles a ArgocdUser object
+type ArgocdUserReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=team.snappcloud.io,resources=teams,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=team.snappcloud.io,resources=teams/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=team.snappcloud.io,resources=teams/finalizers,verbs=update
+//+kubebuilder:rbac:groups=argocduser.snappcloud.io,resources=argocdusers,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=argocduser.snappcloud.io,resources=argocdusers/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=argocduser.snappcloud.io,resources=argocdusers/finalizers,verbs=update
 //+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=user.openshift.io,resources=*,verbs=get;list;watch;create;update;patch;delete
@@ -57,41 +58,41 @@ type TeamReconciler struct {
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the clus k8s.io/api closer to the desired state.
 // TODO(user): Modify the Reconcile function to compare the state specified by
-// the Team object against the actual cluster state, and then
+// the ArgocdUser object against the actual cluster state, and then
 // perform operations to make the cluster state reflect the state specified by
 // the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.9.2/pkg/reconcile
-func (r *TeamReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+func (r *ArgocdUserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
-	team := &teamv1alpha1.Team{}
-	err := r.Client.Get(context.TODO(), req.NamespacedName, team)
+	argocduser := &argocduserv1alpha1.ArgocdUser{}
+	err := r.Client.Get(context.TODO(), req.NamespacedName, argocduser)
 	if err != nil {
-		log.Error(err, "Failed to get team")
+		log.Error(err, "Failed to get argocduser")
 		return ctrl.Result{}, err
 	}
 
-	r.createArgocdStaticUser(ctx, req, team, "admin", team.Spec.Argo.Admin.CIPass, team.Spec.Argo.Admin.Users)
-	r.createArgocdStaticUser(ctx, req, team, "view", team.Spec.Argo.View.CIPass, team.Spec.Argo.View.Users)
-	r.AddArgocdRBACPolicy(ctx, team)
+	r.createArgocdStaticUser(ctx, req, argocduser, "admin", argocduser.Spec.Admin.CIPass, argocduser.Spec.Admin.Users)
+	r.createArgocdStaticUser(ctx, req, argocduser, "view", argocduser.Spec.View.CIPass, argocduser.Spec.View.Users)
+	r.AddArgocdRBACPolicy(ctx, argocduser)
 
 	return ctrl.Result{}, nil
 }
 
-func (r *TeamReconciler) createArgocdStaticUser(ctx context.Context, req ctrl.Request, team *teamv1alpha1.Team, roleName string, ciPass string, argoUsers []string) (ctrl.Result, error) {
-	err := r.UpdateUserArgocdConfig(ctx, team, roleName, ciPass)
+func (r *ArgocdUserReconciler) createArgocdStaticUser(ctx context.Context, req ctrl.Request, argocduser *argocduserv1alpha1.ArgocdUser, roleName string, ciPass string, argoUsers []string) (ctrl.Result, error) {
+	err := r.UpdateUserArgocdConfig(ctx, argocduser, roleName, ciPass)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
-	err = r.AddArgoUsersToGroup(ctx, team, roleName, argoUsers)
+	err = r.AddArgoUsersToGroup(ctx, argocduser, roleName, argoUsers)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{}, nil
 }
 
-func (r *TeamReconciler) UpdateUserArgocdConfig(ctx context.Context, team *teamv1alpha1.Team, roleName string, ciPass string) error {
+func (r *ArgocdUserReconciler) UpdateUserArgocdConfig(ctx context.Context, argocduser *argocduserv1alpha1.ArgocdUser, roleName string, ciPass string) error {
 	log := log.FromContext(ctx)
 	configMap := &corev1.ConfigMap{}
 	err := r.Client.Get(ctx, types.NamespacedName{Name: userArgocdStaticUserCM, Namespace: userArgocdNS}, configMap)
@@ -100,7 +101,7 @@ func (r *TeamReconciler) UpdateUserArgocdConfig(ctx context.Context, team *teamv
 		return err
 	}
 	patch := client.MergeFrom(configMap.DeepCopy())
-	configMap.Data["accounts."+team.Name+"-"+roleName+"-ci"] = "apiKey,login"
+	configMap.Data["accounts."+argocduser.Name+"-"+roleName+"-ci"] = "apiKey,login"
 	err = r.Patch(ctx, configMap, patch)
 	if err != nil {
 		log.Error(err, "Failed to patch cm")
@@ -112,7 +113,7 @@ func (r *TeamReconciler) UpdateUserArgocdConfig(ctx context.Context, team *teamv
 
 	staticPassword := map[string]map[string]string{
 		"data": {
-			"accounts." + team.Name + "-" + roleName + "-ci.password": encodedPass,
+			"accounts." + argocduser.Name + "-" + roleName + "-ci.password": encodedPass,
 		},
 	}
 	staticPassByte, _ := json.Marshal(staticPassword)
@@ -131,26 +132,27 @@ func (r *TeamReconciler) UpdateUserArgocdConfig(ctx context.Context, team *teamv
 
 }
 
-func (r *TeamReconciler) AddArgoUsersToGroup(ctx context.Context, team *teamv1alpha1.Team, roleName string, argoUsers []string) error {
+func (r *ArgocdUserReconciler) AddArgoUsersToGroup(ctx context.Context, argocduser *argocduserv1alpha1.ArgocdUser, roleName string, argoUsers []string) error {
 	log := log.FromContext(ctx)
 	group := &userv1.Group{}
-	groupName := team.Name + "-" + roleName
+	groupName := argocduser.Name + "-" + roleName
 	err := r.Client.Get(ctx, types.NamespacedName{Name: groupName}, group)
 	if err != nil {
-		log.Info("Failed get group, going to create group")
-		// create group
-		group = &userv1.Group{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: groupName,
-			},
+		if errors.IsNotFound(err) {
+			log.Info("Failed get group, going to create group")
+			group = &userv1.Group{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: groupName,
+				},
+			}
+			err = r.Client.Create(ctx, group)
+			if err != nil {
+				log.Error(err, "Failed to create group")
+				return err
+			}
 		}
-		err = r.Client.Create(ctx, group)
-		if err != nil {
-			log.Error(err, "Failed to create group")
-			return err
-		}
+		return err
 	}
-
 	group.Users = argoUsers
 	err = r.Client.Update(ctx, group)
 	if err != nil {
@@ -160,7 +162,7 @@ func (r *TeamReconciler) AddArgoUsersToGroup(ctx context.Context, team *teamv1al
 	return nil
 }
 
-func (r *TeamReconciler) AddArgocdRBACPolicy(ctx context.Context, team *teamv1alpha1.Team) error {
+func (r *ArgocdUserReconciler) AddArgocdRBACPolicy(ctx context.Context, argocduser *argocduserv1alpha1.ArgocdUser) error {
 	log := log.FromContext(ctx)
 	found := &corev1.ConfigMap{}
 	err := r.Client.Get(ctx, types.NamespacedName{Name: userArgocdRbacPolicyCM, Namespace: userArgocdNS}, found)
@@ -170,18 +172,18 @@ func (r *TeamReconciler) AddArgocdRBACPolicy(ctx context.Context, team *teamv1al
 	}
 
 	policies := []string{
-		"g, " + team.Name + "-admin-ci, role:" + team.Name + "-admin",
-		"g, " + team.Name + "-view-ci, role:" + team.Name + "-view",
-		"p, role:" + team.Name + "-admin, repositories, create, " + team.Name + "/*, allow",
-		"p, role:" + team.Name + "-admin, repositories, delete, " + team.Name + "/*, allow",
-		"p, role:" + team.Name + "-admin, repositories, update, " + team.Name + "/*, allow",
-		"p, role:" + team.Name + "-view, repositories, get, " + team.Name + "/*, allow",
-		"p, role:" + team.Name + "-admin, exec, create, *, allow",
-		"g, " + team.Name + "-admin, role:" + team.Name + "-admin",
-		"g, " + team.Name + "-admin, role:" + team.Name + "-view",
-		"g, " + team.Name + "-admin, role:common",
-		"g, " + team.Name + "-view, role:common",
-		"g, " + team.Name + "-view, role:" + team.Name + "-view",
+		"g, " + argocduser.Name + "-admin-ci, role:" + argocduser.Name + "-admin",
+		"g, " + argocduser.Name + "-view-ci, role:" + argocduser.Name + "-view",
+		"p, role:" + argocduser.Name + "-admin, repositories, create, " + argocduser.Name + "/*, allow",
+		"p, role:" + argocduser.Name + "-admin, repositories, delete, " + argocduser.Name + "/*, allow",
+		"p, role:" + argocduser.Name + "-admin, repositories, update, " + argocduser.Name + "/*, allow",
+		"p, role:" + argocduser.Name + "-view, repositories, get, " + argocduser.Name + "/*, allow",
+		"p, role:" + argocduser.Name + "-admin, exec, create, *, allow",
+		"g, " + argocduser.Name + "-admin, role:" + argocduser.Name + "-admin",
+		"g, " + argocduser.Name + "-admin, role:" + argocduser.Name + "-view",
+		"g, " + argocduser.Name + "-admin, role:common",
+		"g, " + argocduser.Name + "-view, role:common",
+		"g, " + argocduser.Name + "-view, role:" + argocduser.Name + "-view",
 	}
 
 	//add argocd rbac policy
@@ -214,9 +216,9 @@ func HashPassword(password string) (string, error) {
 }
 
 // SetupWithManager sets up the controller with the Manager.
-func (r *TeamReconciler) SetupWithManager(mgr ctrl.Manager) error {
+func (r *ArgocdUserReconciler) SetupWithManager(mgr ctrl.Manager) error {
 
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&teamv1alpha1.Team{}).
+		For(&argocduserv1alpha1.ArgocdUser{}).
 		Complete(r)
 }

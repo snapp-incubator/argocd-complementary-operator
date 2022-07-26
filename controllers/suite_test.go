@@ -34,7 +34,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	teamv1alpha1 "github.com/snapp-incubator/team-operator/api/v1alpha1"
+	argocduserv1alpha1 "github.com/snapp-incubator/team-operator/api/v1alpha1"
 	//+kubebuilder:scaffold:imports
 )
 
@@ -69,7 +69,7 @@ var _ = BeforeSuite(func() {
 	Expect(err).NotTo(HaveOccurred())
 	Expect(cfg).NotTo(BeNil())
 
-	err = teamv1alpha1.AddToScheme(scheme.Scheme)
+	err = argocduserv1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
 	err = corev1.AddToScheme(scheme.Scheme)

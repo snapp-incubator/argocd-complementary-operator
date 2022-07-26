@@ -1,24 +1,23 @@
-# team-operator
-Add Team CRD to be able to create static ArgoCD user for each team.
+# argocduser-operator
+Add ArgocdUser CRD to be able to create static ArgoCD user for each argocduser.
 
 ## Instructions
 ```
-apiVersion: team.snappcloud.io/v1alpha1
-kind: Team
+apiVersion: argocduser.snappcloud.io/v1alpha1
+kind: ArgocdUser
 metadata:
-  name: {{teamName}}
+  name: {{argocduserName}}
 spec:
-  argo:
-    admin:
-      ciPass: ******
-      users:
-      - user1
-      - user2
-    view:
-      ciPass: ******
-      users:
-      - user1
-      - user2
+  admin:
+    ciPass: ******
+    users:
+    - user1
+    - user2
+  view:
+    ciPass: ******
+    users:
+    - user1
+    - user2
 ```
 ### Development
 
