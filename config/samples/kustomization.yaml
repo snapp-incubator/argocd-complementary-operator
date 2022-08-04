@@ -1,4 +1,4 @@
 ## Append samples you want in your CSV to this file as resources ##
 resources:
-- argocduser_v1alpha1_argocduser.yaml
+- argocd_v1alpha1_argocduser.yaml
 #+kubebuilder:scaffold:manifestskustomizesamples

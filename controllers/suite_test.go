@@ -34,7 +34,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
-	argocduserv1alpha1 "github.com/snapp-incubator/team-operator/api/v1alpha1"
+	argocduserv1alpha1 "github.com/snapp-incubator/argocd-complementary-operator/api/v1alpha1"
 	//+kubebuilder:scaffold:imports
 )
 

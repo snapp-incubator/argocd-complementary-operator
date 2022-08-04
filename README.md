@@ -1,9 +1,9 @@
-# argocduser-operator
+# argocd-complementary-operator
 Add ArgocdUser CRD to be able to create static ArgoCD user for each argocduser.
 
 ## Instructions
 ```
-apiVersion: argocduser.snappcloud.io/v1alpha1
+apiVersion: argocd.snappcloud.io/v1alpha1
 kind: ArgocdUser
 metadata:
   name: {{argocduserName}}

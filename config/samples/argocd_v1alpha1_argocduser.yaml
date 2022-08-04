@@ -1,8 +1,8 @@
-apiVersion: argocduser.snappcloud.io/v1alpha1
+apiVersion: argocd.snappcloud.io/v1alpha1
 kind: ArgocdUser
 metadata:
   name: argocdusername
-  namespace: argocduser-operator-system
+  namespace: argocd-complementary-operator-system
 spec:
   admin:
     ciPass: test

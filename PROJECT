@@ -5,7 +5,7 @@ plugins:
   manifests.sdk.operatorframework.io/v2: {}
   scorecard.sdk.operatorframework.io/v2: {}
   sdk.x-openshift.io/v1: {}
-projectName: argocduser-operator
+projectName: argocd-complementary-operator
 repo: github.com/snapp-incubator/argocd-complementary-operator
 resources:
 - api:

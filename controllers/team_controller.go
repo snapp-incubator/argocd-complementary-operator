@@ -23,7 +23,7 @@ import (
 	"strings"
 
 	userv1 "github.com/openshift/api/user/v1"
-	argocduserv1alpha1 "github.com/snapp-incubator/team-operator/api/v1alpha1"
+	argocduserv1alpha1 "github.com/snapp-incubator/argocd-complementary-operator/api/v1alpha1"
 	"golang.org/x/crypto/bcrypt"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -48,9 +48,9 @@ type ArgocdUserReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=argocduser.snappcloud.io,resources=argocdusers,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=argocduser.snappcloud.io,resources=argocdusers/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=argocduser.snappcloud.io,resources=argocdusers/finalizers,verbs=update
+//+kubebuilder:rbac:groups=argocd.snappcloud.io,resources=argocdusers,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=argocd.snappcloud.io,resources=argocdusers/status,verbs=get;update;patch
+//+kubebuilder:rbac:groups=argocd.snappcloud.io,resources=argocdusers/finalizers,verbs=update
 //+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=user.openshift.io,resources=*,verbs=get;list;watch;create;update;patch;delete

@@ -6,9 +6,9 @@ metadata:
   annotations:
     controller-gen.kubebuilder.io/version: v0.6.1
   creationTimestamp: null
-  name: argocdusers.argocduser.snappcloud.io
+  name: argocdusers.argocd.snappcloud.io
 spec:
-  group: argocduser.snappcloud.io
+  group: argocd.snappcloud.io
   names:
     kind: ArgocdUser
     listKind: ArgocdUserList

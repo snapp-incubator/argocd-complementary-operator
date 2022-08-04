@@ -5,7 +5,7 @@ metadata:
   name: argocduser-editor-role
 rules:
 - apiGroups:
-  - argocduser.snappcloud.io
+  - argocd.snappcloud.io
   resources:
   - argocdusers
   verbs:
@@ -17,7 +17,7 @@ rules:
   - update
   - watch
 - apiGroups:
-  - argocduser.snappcloud.io
+  - argocd.snappcloud.io
   resources:
   - argocdusers/status
   verbs:
