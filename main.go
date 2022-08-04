@@ -32,8 +32,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	userv1 "github.com/openshift/api/user/v1"
-	argocduserv1alpha1 "github.com/snapp-incubator/team-operator/api/v1alpha1"
-	"github.com/snapp-incubator/team-operator/controllers"
+	argocduserv1alpha1 "github.com/snapp-incubator/argocd-complementary-operator/api/v1alpha1"
+	"github.com/snapp-incubator/argocd-complementary-operator/controllers"
 
 	//+kubebuilder:scaffold:imports
 	argov1alpha1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"

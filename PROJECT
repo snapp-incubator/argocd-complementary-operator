@@ -6,7 +6,7 @@ plugins:
   scorecard.sdk.operatorframework.io/v2: {}
   sdk.x-openshift.io/v1: {}
 projectName: argocduser-operator
-repo: github.com/snapp-incubator/team-operator
+repo: github.com/snapp-incubator/argocd-complementary-operator
 resources:
 - api:
     crdVersion: v1
@@ -15,7 +15,7 @@ resources:
   domain: snappcloud.io
   group: argocduser
   kind: ArgocdUser
-  path: github.com/snapp-incubator/team-operator/api/v1alpha1
+  path: github.com/snapp-incubator/argocd-complementary-operator/api/v1alpha1
   version: v1
 - controller: true
   group: core

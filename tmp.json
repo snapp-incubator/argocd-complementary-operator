@@ -3,7 +3,7 @@
     "kind": "Namespace",
     "metadata": {
         "annotations": {
-            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Namespace\",\"metadata\":{\"annotations\":{},\"labels\":{\"control-plane\":\"controller-manager\"},\"name\":\"team-operator-system\"}}\n",
+            "kubectl.kubernetes.io/last-applied-configuration": "{\"apiVersion\":\"v1\",\"kind\":\"Namespace\",\"metadata\":{\"annotations\":{},\"labels\":{\"control-plane\":\"controller-manager\"},\"name\":\"argocd-complementary-operator-system\"}}\n",
             "openshift.io/sa.scc.mcs": "s0:c30,c20",
             "openshift.io/sa.scc.supplemental-groups": "1000910000/10000",
             "openshift.io/sa.scc.uid-range": "1000910000/10000"
@@ -12,9 +12,9 @@
         "deletionTimestamp": "2022-04-18T07:16:19Z",
         "labels": {
             "control-plane": "controller-manager",
-            "kubernetes.io/metadata.name": "team-operator-system"
+            "kubernetes.io/metadata.name": "argocd-complementary-operator-system"
         },
-        "name": "team-operator-system",
+        "name": "argocd-complementary-operator-system",
         "resourceVersion": "134640145",
         "uid": "babb5908-9fc7-43bb-9c0f-ac666eea87f7"
     },

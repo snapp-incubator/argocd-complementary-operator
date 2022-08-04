@@ -1,4 +1,4 @@
-module github.com/snapp-incubator/team-operator
+module github.com/snapp-incubator/argocd-complementary-operator
 
 go 1.17
 
