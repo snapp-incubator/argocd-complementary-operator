@@ -41,7 +41,7 @@ type NamespaceReconciler struct {
 }
 
 const (
-	teamLabel = "snappcloud.io/team"
+	teamLabel = "argocd.snappcloud.io/apprpoj"
 	baseNs    = "user-argocd"
 )
 

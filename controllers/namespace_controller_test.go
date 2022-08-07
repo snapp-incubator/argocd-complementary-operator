@@ -37,9 +37,10 @@ var _ = Describe("namespace controller", func() {
 
 	// Define utility constants for object names and testing timeouts/durations and intervals.
 	const (
-		timeout  = time.Second * 10
-		duration = time.Second * 10
-		interval = time.Millisecond * 250
+		timeout   = time.Second * 10
+		duration  = time.Second * 10
+		interval  = time.Millisecond * 250
+		teamLabel = "argocd.snappcloud.io/apprpoj"
 	)
 	// Creating user-argocd namespace
 	Context("When cluster bootstrap", func() {
@@ -64,7 +65,7 @@ var _ = Describe("namespace controller", func() {
 			testNs := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:   "test-ns",
-					Labels: map[string]string{"snappcloud.io/team": "test-team"},
+					Labels: map[string]string{teamLabel: "test-team"},
 				},
 			}
 			Expect(k8sClient.Create(ctx, testNs)).Should(Succeed())
@@ -88,7 +89,7 @@ var _ = Describe("namespace controller", func() {
 				testNs := &corev1.Namespace{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:   "test-ns",
-						Labels: map[string]string{"snappcloud.io/team": "cloudy-team"},
+						Labels: map[string]string{teamLabel: "cloudy-team"},
 					},
 				}
 				Expect(k8sClient.Update(ctx, testNs)).Should(Succeed())
@@ -122,7 +123,7 @@ var _ = Describe("namespace controller", func() {
 			testNs := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:   "test-ns",
-					Labels: map[string]string{"snappcloud.io/team": "cloudy-team"},
+					Labels: map[string]string{teamLabel: "cloudy-team"},
 				},
 			}
 			DeleteNs(testNs)
