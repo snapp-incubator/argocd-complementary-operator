@@ -151,7 +151,6 @@ func (r *ArgocdUserReconciler) AddArgoUsersToGroup(ctx context.Context, argocdus
 				return err
 			}
 		}
-		return err
 	}
 	group.Users = argoUsers
 	err = r.Client.Update(ctx, group)
