@@ -47,6 +47,7 @@ type ArgocdCIView struct {
 
 //+kubebuilder:object:root=true
 //+kubebuilder:subresource:status
+//+kubebuilder:resource:scope=Cluster
 
 // ArgocdUser is the Schema for the ArgocdUsers API
 type ArgocdUser struct {

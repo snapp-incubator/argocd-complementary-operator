@@ -10,7 +10,7 @@ repo: github.com/snapp-incubator/argocd-complementary-operator
 resources:
 - api:
     crdVersion: v1
-    namespaced: true
+    namespaced: false
   controller: true
   domain: snappcloud.io
   group: argocduser
