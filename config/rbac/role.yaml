@@ -36,6 +36,7 @@ rules:
   - appprojects
   verbs:
   - create
+  - delete
   - get
   - list
   - patch
