@@ -19,7 +19,9 @@ package controllers
 import (
 	"context"
 	"fmt"
+	"os"
 	"reflect"
+	"strings"
 	"sync"
 
 	argov1alpha1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
@@ -71,6 +73,7 @@ func (c *SafeNsCache) Load(k string) (v string, ok bool) {
 //+kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=core,resources=namespaces/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=core,resources=namespaces/finalizers,verbs=update
+//+kubebuilder:rbac:groups=argoproj.io,resources=appprojects,verbs=get;list;watch;create;update;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -210,13 +213,16 @@ func (r *NamespaceReconciler) createAppProj(ctx context.Context, team string) (*
 
 	}
 
+	repo_env := os.Getenv("PUBLIC_REPOS")
+	repo_list := strings.Split(repo_env, ",")
+
 	appProj := &argov1alpha1.AppProject{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      team,
 			Namespace: baseNs,
 		},
 		Spec: argov1alpha1.AppProjectSpec{
-			SourceRepos:  []string{""},
+			SourceRepos:  repo_list,
 			Destinations: destList,
 			ClusterResourceBlacklist: []metav1.GroupKind{
 				{
