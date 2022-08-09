@@ -214,7 +214,6 @@ func (r *NamespaceReconciler) createAppProj(ctx context.Context, team string) (*
 	}
 
 	repo_env := os.Getenv("PUBLIC_REPOS")
-	repo_env = strings.Replace(repo_env, "|", "", -1)
 	repo_list := strings.Split(repo_env, ",")
 
 	appProj := &argov1alpha1.AppProject{
