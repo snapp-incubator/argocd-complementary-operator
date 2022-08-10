@@ -173,17 +173,20 @@ func (r *ArgocdUserReconciler) AddArgocdRBACPolicy(ctx context.Context, argocdus
 
 	policies := []string{
 		"g, " + argocduser.Name + "-admin-ci, role:" + argocduser.Name + "-admin",
+		"g, " + argocduser.Name + "-admin-ci, role:" + argocduser.Name + "-view",
+		"g, " + argocduser.Name + "-admin-ci, role:common",
+		"g, " + argocduser.Name + "-view-ci, role:common",
 		"g, " + argocduser.Name + "-view-ci, role:" + argocduser.Name + "-view",
-		"p, role:" + argocduser.Name + "-admin, repositories, create, " + argocduser.Name + "/*, allow",
-		"p, role:" + argocduser.Name + "-admin, repositories, delete, " + argocduser.Name + "/*, allow",
-		"p, role:" + argocduser.Name + "-admin, repositories, update, " + argocduser.Name + "/*, allow",
-		"p, role:" + argocduser.Name + "-view, repositories, get, " + argocduser.Name + "/*, allow",
-		"p, role:" + argocduser.Name + "-admin, exec, create, *, allow",
 		"g, " + argocduser.Name + "-admin, role:" + argocduser.Name + "-admin",
 		"g, " + argocduser.Name + "-admin, role:" + argocduser.Name + "-view",
 		"g, " + argocduser.Name + "-admin, role:common",
 		"g, " + argocduser.Name + "-view, role:common",
 		"g, " + argocduser.Name + "-view, role:" + argocduser.Name + "-view",
+		"p, role:" + argocduser.Name + "-admin, repositories, create, " + argocduser.Name + "/*, allow",
+		"p, role:" + argocduser.Name + "-admin, repositories, delete, " + argocduser.Name + "/*, allow",
+		"p, role:" + argocduser.Name + "-admin, repositories, update, " + argocduser.Name + "/*, allow",
+		"p, role:" + argocduser.Name + "-view, repositories, get, " + argocduser.Name + "/*, allow",
+		"p, role:" + argocduser.Name + "-admin, exec, create, *, allow",
 	}
 
 	//add argocd rbac policy
