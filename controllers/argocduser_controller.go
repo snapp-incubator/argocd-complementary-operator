@@ -158,6 +158,7 @@ func (r *ArgocdUserReconciler) AddArgoUsersToGroup(ctx context.Context, argocdus
 		log.Error(err, "Failed to update group")
 		return err
 	}
+	log.Info("Successfully added users to group")
 	return nil
 }
 
@@ -206,6 +207,7 @@ func (r *ArgocdUserReconciler) AddArgocdRBACPolicy(ctx context.Context, argocdus
 			return err
 		}
 	}
+	log.Info("Successfully added argocd rbac policy")
 	return nil
 }
 
@@ -216,7 +218,6 @@ func HashPassword(password string) (string, error) {
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ArgocdUserReconciler) SetupWithManager(mgr ctrl.Manager) error {
-
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&argocduserv1alpha1.ArgocdUser{}).
 		Complete(r)
