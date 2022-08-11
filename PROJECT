@@ -13,7 +13,7 @@ resources:
     namespaced: false
   controller: true
   domain: snappcloud.io
-  group: argocduser
+  group: argocd
   kind: ArgocdUser
   path: github.com/snapp-incubator/argocd-complementary-operator/api/v1alpha1
   version: v1

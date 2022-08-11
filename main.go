@@ -46,6 +46,7 @@ var (
 
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
+	utilruntime.Must(argov1alpha1.AddToScheme(scheme))
 	utilruntime.Must(argocduserv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(userv1.AddToScheme(scheme))
 
@@ -89,6 +90,7 @@ func main() {
 		setupLog.Error(err, "unable to create controller", "controller", "ArgocdUser")
 		os.Exit(1)
 	}
+
 	// if err = (&controllers.NamespaceReconciler{
 	// 	Client: mgr.GetClient(),
 	// 	Scheme: mgr.GetScheme(),
@@ -96,6 +98,7 @@ func main() {
 	// 	setupLog.Error(err, "unable to create controller", "controller", "Namespace")
 	// 	os.Exit(1)
 	// }
+
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {
