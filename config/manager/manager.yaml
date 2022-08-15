@@ -52,5 +52,8 @@ spec:
           requests:
             cpu: 100m
             memory: 20Mi
+        envFrom:
+        - configMapRef:
+            name: public-repos
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10
