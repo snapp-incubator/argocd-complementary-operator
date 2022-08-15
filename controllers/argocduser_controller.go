@@ -73,9 +73,21 @@ func (r *ArgocdUserReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	r.createArgocdStaticUser(ctx, req, argocduser, "admin", argocduser.Spec.Admin.CIPass, argocduser.Spec.Admin.Users)
-	r.createArgocdStaticUser(ctx, req, argocduser, "view", argocduser.Spec.View.CIPass, argocduser.Spec.View.Users)
-	r.AddArgocdRBACPolicy(ctx, argocduser)
+	_, err = r.createArgocdStaticUser(ctx, req, argocduser, "admin", argocduser.Spec.Admin.CIPass, argocduser.Spec.Admin.Users)
+	if err != nil {
+		log.Error(err, "Failed create argocd static user admin")
+		return ctrl.Result{}, err
+	}
+	_, err = r.createArgocdStaticUser(ctx, req, argocduser, "view", argocduser.Spec.View.CIPass, argocduser.Spec.View.Users)
+	if err != nil {
+		log.Error(err, "Failed create argocd static user view")
+		return ctrl.Result{}, err
+	}
+	err = r.AddArgocdRBACPolicy(ctx, argocduser)
+	if err != nil {
+		log.Error(err, "Failed to add argocd rbac policy")
+		return ctrl.Result{}, err
+	}
 
 	return ctrl.Result{}, nil
 }
@@ -121,7 +133,7 @@ func (r *ArgocdUserReconciler) UpdateUserArgocdConfig(ctx context.Context, argoc
 	err = r.Client.Patch(context.Background(), &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: userArgocdNS,
-			Name:      "argocd-secret",
+			Name:      userArgocdSecret,
 		},
 	}, client.RawPatch(types.StrategicMergePatchType, staticPassByte))
 	if err != nil {

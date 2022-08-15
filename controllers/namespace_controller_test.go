@@ -37,8 +37,8 @@ var _ = Describe("namespace controller", func() {
 
 	// Define utility constants for object names and testing timeouts/durations and intervals.
 	const (
-		timeout   = time.Second * 10
-		duration  = time.Second * 10
+		timeout = time.Second * 10
+		// duration  = time.Second * 10
 		interval  = time.Millisecond * 250
 		teamLabel = "argocd.snappcloud.io/apprpoj"
 	)
