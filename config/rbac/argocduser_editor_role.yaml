@@ -1,13 +1,13 @@
-# permissions for end users to edit teams.
+# permissions for end users to edit argocdusers.
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
 metadata:
-  name: team-editor-role
+  name: argocduser-editor-role
 rules:
 - apiGroups:
-  - team.snappcloud.io
+  - argocd.snappcloud.io
   resources:
-  - teams
+  - argocdusers
   verbs:
   - create
   - delete
@@ -17,8 +17,8 @@ rules:
   - update
   - watch
 - apiGroups:
-  - team.snappcloud.io
+  - argocd.snappcloud.io
   resources:
-  - teams/status
+  - argocdusers/status
   verbs:
   - get

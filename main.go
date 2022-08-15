@@ -32,9 +32,8 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
 	userv1 "github.com/openshift/api/user/v1"
-
-	teamv1alpha1 "github.com/snapp-incubator/team-operator/api/v1alpha1"
-	"github.com/snapp-incubator/team-operator/controllers"
+	argocduserv1alpha1 "github.com/snapp-incubator/argocd-complementary-operator/api/v1alpha1"
+	"github.com/snapp-incubator/argocd-complementary-operator/controllers"
 
 	//+kubebuilder:scaffold:imports
 	argov1alpha1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
@@ -48,7 +47,7 @@ var (
 func init() {
 	utilruntime.Must(clientgoscheme.AddToScheme(scheme))
 	utilruntime.Must(argov1alpha1.AddToScheme(scheme))
-	utilruntime.Must(teamv1alpha1.AddToScheme(scheme))
+	utilruntime.Must(argocduserv1alpha1.AddToScheme(scheme))
 	utilruntime.Must(userv1.AddToScheme(scheme))
 
 	//+kubebuilder:scaffold:scheme
@@ -84,20 +83,22 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controllers.TeamReconciler{
+	if err = (&controllers.ArgocdUserReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Team")
+		setupLog.Error(err, "unable to create controller", "controller", "ArgocdUser")
 		os.Exit(1)
 	}
-	if err = (&controllers.NamespaceReconciler{
-		Client: mgr.GetClient(),
-		Scheme: mgr.GetScheme(),
-	}).SetupWithManager(mgr); err != nil {
-		setupLog.Error(err, "unable to create controller", "controller", "Namespace")
-		os.Exit(1)
-	}
+
+	// if err = (&controllers.NamespaceReconciler{
+	// 	Client: mgr.GetClient(),
+	// 	Scheme: mgr.GetScheme(),
+	// }).SetupWithManager(mgr); err != nil {
+	// 	setupLog.Error(err, "unable to create controller", "controller", "Namespace")
+	// 	os.Exit(1)
+	// }
+
 	//+kubebuilder:scaffold:builder
 
 	if err := mgr.AddHealthzCheck("healthz", healthz.Ping); err != nil {

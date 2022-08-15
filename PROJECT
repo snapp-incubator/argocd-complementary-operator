@@ -5,17 +5,17 @@ plugins:
   manifests.sdk.operatorframework.io/v2: {}
   scorecard.sdk.operatorframework.io/v2: {}
   sdk.x-openshift.io/v1: {}
-projectName: team-operator
-repo: github.com/snapp-incubator/team-operator
+projectName: argocd-complementary-operator
+repo: github.com/snapp-incubator/argocd-complementary-operator
 resources:
 - api:
     crdVersion: v1
-    namespaced: true
+    namespaced: false
   controller: true
   domain: snappcloud.io
-  group: team
-  kind: Team
-  path: github.com/snapp-incubator/team-operator/api/v1alpha1
+  group: argocd
+  kind: ArgocdUser
+  path: github.com/snapp-incubator/argocd-complementary-operator/api/v1alpha1
   version: v1
 - controller: true
   group: core

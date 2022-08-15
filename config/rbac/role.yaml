@@ -68,9 +68,9 @@ rules:
   - patch
   - update
 - apiGroups:
-  - team.snappcloud.io
+  - argocd.snappcloud.io
   resources:
-  - teams
+  - argocdusers
   verbs:
   - create
   - delete
@@ -80,15 +80,15 @@ rules:
   - update
   - watch
 - apiGroups:
-  - team.snappcloud.io
+  - argocd.snappcloud.io
   resources:
-  - teams/finalizers
+  - argocdusers/finalizers
   verbs:
   - update
 - apiGroups:
-  - team.snappcloud.io
+  - argocd.snappcloud.io
   resources:
-  - teams/status
+  - argocdusers/status
   verbs:
   - get
   - patch

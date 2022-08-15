@@ -12,5 +12,5 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 images:
 - name: controller
-  newName: registry.okd4.ts-1.staging-snappcloud.io/public-reg/team-operator
+  newName: registry.okd4.ts-1.staging-snappcloud.io/public-reg/argocd-complementary-operator
   newTag: v25.9
