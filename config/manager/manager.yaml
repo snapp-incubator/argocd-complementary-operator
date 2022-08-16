@@ -47,13 +47,13 @@ spec:
           periodSeconds: 10
         resources:
           limits:
-            cpu: 200m
-            memory: 100Mi
+            cpu: 400m
+            memory: 1GMi
           requests:
-            cpu: 100m
-            memory: 20Mi
-        envFrom:
-        - configMapRef:
-            name: public-repos
+            cpu: 200m
+            memory: 500Mi
+        # envFrom:
+        # - configMapRef:
+        #     name: public-repos
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10
