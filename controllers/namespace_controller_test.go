@@ -154,6 +154,9 @@ func DeleteNs(nsname *corev1.Namespace) {
 	Expect(k8sClient.Get(ctx, types.NamespacedName{Name: nsname.ObjectMeta.Name}, nsname)).Should(Succeed())
 	finalizers := []corev1.FinalizerName{}
 	clientGo, err := kubernetes.NewForConfig(testEnv.Config)
+	if err != nil {
+		log.Println(err)
+	}
 	nsname.Spec.Finalizers = finalizers
 	_, err = clientGo.CoreV1().Namespaces().Finalize(ctx, nsname, metav1.UpdateOptions{})
 	if err != nil {
