@@ -213,8 +213,17 @@ func (r *NamespaceReconciler) createAppProj(ctx context.Context, team string) (*
 
 	}
 
+	// Get public repos
 	repo_env := os.Getenv("PUBLIC_REPOS")
 	repo_list := strings.Split(repo_env, ",")
+
+	// Compare source repos and public repos
+	foundproj := &argov1alpha1.AppProject{}
+	err = r.Get(ctx, types.NamespacedName{Name: team, Namespace: baseNs}, foundproj)
+	proj_repos := foundproj.Spec.SourceRepos
+	if !reflect.DeepEqual(repo_list, proj_repos) {
+		repo_list = appendRepos(repo_list, proj_repos)
+	}
 
 	appProj := &argov1alpha1.AppProject{
 		ObjectMeta: metav1.ObjectMeta{
@@ -238,14 +247,14 @@ func (r *NamespaceReconciler) createAppProj(ctx context.Context, team string) (*
 			},
 			Roles: []argov1alpha1.ProjectRole{
 				{
-					Groups: []string{team + "-admin"},
+					Groups: []string{team + "-admin", team + "-admin" + "-ci"},
 					Name:   team + "-admin",
 					Policies: []string{
 						"p, proj:" + team + ":" + team + "-admin, applications, *, " + team + "/*, allow",
 					},
 				},
 				{
-					Groups: []string{team + "-view"},
+					Groups: []string{team + "-view", team + "-view" + "-ci"},
 					Name:   team + "-view",
 					Policies: []string{
 						"p, proj:" + team + ":" + team + "-view, applications, *, " + team + "/get, allow",
@@ -264,4 +273,20 @@ func (r *NamespaceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Namespace{}).
 		Complete(r)
+}
+
+func appendRepos(repo_list []string, proj_repos []string) []string {
+
+	check := make(map[string]int)
+	mixrepos := append(repo_list, proj_repos...)
+	res := make([]string, 0)
+	for _, val := range mixrepos {
+		check[val] = 1
+	}
+
+	for letter, _ := range check {
+		res = append(res, letter)
+	}
+
+	return res
 }
