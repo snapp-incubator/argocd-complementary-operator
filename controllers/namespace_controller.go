@@ -277,7 +277,7 @@ func appendRepos(repo_list []string, found_repos []string) []string {
 		check[repo] = true
 	}
 
-	for repo, _ := range check {
+	for repo := range check {
 		res = append(res, repo)
 	}
 
