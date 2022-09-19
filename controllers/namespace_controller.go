@@ -179,6 +179,7 @@ func (r *NamespaceReconciler) reconcileAppProject(ctx context.Context, logger lo
 	}
 
 	// If AppProj already exist, check if it is deeply equal with desrired state
+	appProj.Spec.SourceRepos = appendRepos(appProj.Spec.SourceRepos, found.Spec.SourceRepos)
 	if !reflect.DeepEqual(appProj.Spec, found.Spec) {
 		logger.Info("Updating AppProj", "AppProj.Name", team)
 		found.Spec = appProj.Spec
@@ -216,14 +217,6 @@ func (r *NamespaceReconciler) createAppProj(ctx context.Context, team string) (*
 	// Get public repos
 	repo_env := os.Getenv("PUBLIC_REPOS")
 	repo_list := strings.Split(repo_env, ",")
-
-	// Compare source repos and public repos
-	foundproj := &argov1alpha1.AppProject{}
-	err = r.Get(ctx, types.NamespacedName{Name: team, Namespace: baseNs}, foundproj)
-	proj_repos := foundproj.Spec.SourceRepos
-	if !reflect.DeepEqual(repo_list, proj_repos) {
-		repo_list = appendRepos(repo_list, proj_repos)
-	}
 
 	appProj := &argov1alpha1.AppProject{
 		ObjectMeta: metav1.ObjectMeta{
@@ -275,17 +268,17 @@ func (r *NamespaceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-func appendRepos(repo_list []string, proj_repos []string) []string {
-
-	check := make(map[string]int)
-	mixrepos := append(repo_list, proj_repos...)
+// Compare source repos and public repos
+func appendRepos(repo_list []string, found_repos []string) []string {
+	check := make(map[string]bool)
+	mixrepos := append(repo_list, found_repos...)
 	res := make([]string, 0)
-	for _, val := range mixrepos {
-		check[val] = 1
+	for _, repo := range mixrepos {
+		check[repo] = true
 	}
 
-	for letter, _ := range check {
-		res = append(res, letter)
+	for repo, _ := range check {
+		res = append(res, repo)
 	}
 
 	return res
