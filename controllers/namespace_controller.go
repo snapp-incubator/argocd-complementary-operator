@@ -179,6 +179,7 @@ func (r *NamespaceReconciler) reconcileAppProject(ctx context.Context, logger lo
 	}
 
 	// If AppProj already exist, check if it is deeply equal with desrired state
+	appProj.Spec.SourceRepos = appendRepos(appProj.Spec.SourceRepos, found.Spec.SourceRepos)
 	if !reflect.DeepEqual(appProj.Spec, found.Spec) {
 		logger.Info("Updating AppProj", "AppProj.Name", team)
 		found.Spec = appProj.Spec
@@ -213,6 +214,7 @@ func (r *NamespaceReconciler) createAppProj(ctx context.Context, team string) (*
 
 	}
 
+	// Get public repos
 	repo_env := os.Getenv("PUBLIC_REPOS")
 	repo_list := strings.Split(repo_env, ",")
 
@@ -238,14 +240,14 @@ func (r *NamespaceReconciler) createAppProj(ctx context.Context, team string) (*
 			},
 			Roles: []argov1alpha1.ProjectRole{
 				{
-					Groups: []string{team + "-admin"},
+					Groups: []string{team + "-admin", team + "-admin" + "-ci"},
 					Name:   team + "-admin",
 					Policies: []string{
 						"p, proj:" + team + ":" + team + "-admin, applications, *, " + team + "/*, allow",
 					},
 				},
 				{
-					Groups: []string{team + "-view"},
+					Groups: []string{team + "-view", team + "-view" + "-ci"},
 					Name:   team + "-view",
 					Policies: []string{
 						"p, proj:" + team + ":" + team + "-view, applications, *, " + team + "/get, allow",
@@ -264,4 +266,20 @@ func (r *NamespaceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&corev1.Namespace{}).
 		Complete(r)
+}
+
+// Compare source repos and public repos
+func appendRepos(repo_list []string, found_repos []string) []string {
+	check := make(map[string]bool)
+	mixrepos := append(repo_list, found_repos...)
+	res := make([]string, 0)
+	for _, repo := range mixrepos {
+		check[repo] = true
+	}
+
+	for repo := range check {
+		res = append(res, repo)
+	}
+
+	return res
 }
