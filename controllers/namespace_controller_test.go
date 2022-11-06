@@ -40,7 +40,7 @@ var _ = Describe("namespace controller", func() {
 		timeout = time.Second * 10
 		// duration  = time.Second * 10
 		interval  = time.Millisecond * 250
-		teamLabel = "argocd.snappcloud.io/apprpoj"
+		teamLabel = "argocd.snappcloud.io/appproj"
 	)
 	// Creating user-argocd namespace
 	Context("When cluster bootstrap", func() {
