@@ -29,7 +29,7 @@ spec:
         - /manager
         args:
         - --leader-elect
-        image: ghcr.io/snapp-incubator/argocd-complementary-operator:main
+        image: ghcr.io/snapp-incubator/argocd-complementary-operator:0.2.0
         name: manager
         securityContext:
           allowPrivilegeEscalation: false
