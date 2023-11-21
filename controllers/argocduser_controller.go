@@ -198,6 +198,7 @@ func (r *ArgocdUserReconciler) AddArgocdRBACPolicy(ctx context.Context, argocdus
 		"p, role:" + argocduser.Name + "-admin, repositories, delete, " + argocduser.Name + "/*, allow",
 		"p, role:" + argocduser.Name + "-admin, repositories, update, " + argocduser.Name + "/*, allow",
 		"p, role:" + argocduser.Name + "-view, repositories, get, " + argocduser.Name + "/*, allow",
+		"p, role:" + argocduser.Name + "-view, applications, get, " + argocduser.Name + "/*, allow",
 		"p, role:" + argocduser.Name + "-admin, exec, create, *, allow",
 	}
 
