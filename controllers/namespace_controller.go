@@ -26,6 +26,7 @@ import (
 
 	argov1alpha1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
 	"github.com/go-logr/logr"
+	"github.com/hashicorp/go-multierror"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -40,34 +41,90 @@ import (
 type NamespaceReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
+	mu     sync.Mutex
 }
 
 const (
-	teamLabel = "argocd.snappcloud.io/appproj"
-	baseNs    = "user-argocd"
+	projectsLabel = "argocd.snappcloud.io/appproj"
+	baseNs        = "user-argocd"
 )
 
-var safeNsCache = &SafeNsCache{m: map[string]string{}}
+var safeNsCache = &SafeNsCache{initialized: false}
 
+type Nameset map[string]struct{}
+
+type AppProjectNameset Nameset
+type NamespaceNameset Nameset
 type SafeNsCache struct {
-	mu sync.Mutex
-	m  map[string]string
+	mu          sync.Mutex
+	projects    map[string]AppProjectNameset
+	namespaces  map[string]NamespaceNameset
+	initialized bool
 }
 
-// Inc increments the counter for the given key.
-func (c *SafeNsCache) Set(k, v string) {
+// JoinProject will remove given namespace from given project in SafeNsCache entries
+// It will update both upward and downward edges in AppProjectNameset and NamespaceNameset
+func (c *SafeNsCache) JoinProject(ns, proj string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	// Lock so only one goroutine at a time can access the map c.m.
-	c.m[k] = v
-
+	c.projects[ns][proj] = struct{}{}
+	c.namespaces[proj][ns] = struct{}{}
 }
 
-func (c *SafeNsCache) Load(k string) (v string, ok bool) {
+// LeaveProject will remove given namespace from given project in SafeNsCache entries
+// It will update both upward and downward edges in AppProjectNameset and NamespaceNameset
+func (c *SafeNsCache) LeaveProject(ns, proj string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-	v, ok = c.m[k]
-	return v, ok
+	delete(c.projects[ns], proj)
+	delete(c.namespaces[proj], ns)
+}
+
+// GetProjects will return name-set for given Namespace name
+func (c *SafeNsCache) GetProjects(ns string) AppProjectNameset {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	r := make(AppProjectNameset)
+	for k := range c.projects[ns] {
+		r[k] = struct{}{}
+	}
+	return r
+}
+
+// GetNamespaces will return name-set for given AppProject name
+func (c *SafeNsCache) GetNamespaces(proj string) NamespaceNameset {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	r := make(NamespaceNameset)
+	for k := range c.namespaces[proj] {
+		r[k] = struct{}{}
+	}
+	return r
+}
+
+func (c *SafeNsCache) InitOrPass(r *NamespaceReconciler, ctx context.Context) error {
+	if c.initialized {
+		return nil
+	}
+
+	nsList := &corev1.NamespaceList{}
+	err := r.List(ctx, nsList)
+	if err != nil {
+		return err
+	}
+
+	c.namespaces = make(map[string]NamespaceNameset)
+	c.projects = make(map[string]AppProjectNameset)
+
+	for _, nsItem := range nsList.Items {
+		projects := convertLabelToAppProjectNameset(
+			nsItem.GetLabels()[projectsLabel],
+		)
+		for project := range projects {
+			c.JoinProject(nsItem.Name, project)
+		}
+	}
+	return nil
 }
 
 //+kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch;create;update;patch;delete
@@ -85,83 +142,93 @@ func (c *SafeNsCache) Load(k string) (v string, ok bool) {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.10.0/pkg/reconcile
 func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	logger := log.FromContext(ctx)
-	logger.Info(fmt.Sprint(req.NamespacedName))
+	logger.Info("Reconciling Namespace: ", fmt.Sprint(req.NamespacedName))
+
+	err := safeNsCache.InitOrPass(r, ctx)
+	if err != nil {
+		return ctrl.Result{}, err
+	}
 
 	ns := &corev1.Namespace{}
-	err := r.Get(ctx, req.NamespacedName, ns)
+	// First Fetch Phase
+	err = r.Get(ctx, req.NamespacedName, ns)
 	if err != nil {
 		if errors.IsNotFound(err) {
+			logger.Info("Namespace not found. Ignoring since object must be deleted")
 
-			oldTeam, _ := safeNsCache.Load(req.Name)
-			fmt.Println("oldteam", oldTeam)
-			if oldTeam != "" {
-				err = r.reconcileAppProject(ctx, logger, oldTeam)
-				if err != nil {
-					return ctrl.Result{}, err
+			oldTeams := safeNsCache.GetProjects(req.Name)
+			if len(oldTeams) > 0 {
+				for t := range oldTeams {
+					err := r.reconcileAppProject(ctx, logger, t)
+					if err != nil {
+						logger.Info("Failed to reconcile AppProject [", t, "] for not found resource error recovery: ", err.Error())
+					} else {
+						logger.Info("Successfully reconciled AppProject [", t, "] for not found resource error recovery")
+					}
 				}
 			}
 			// Request object not found, could have been deleted after reconcile request.
 			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
 			// Return and don't requeue
-			logger.Info("Resource not found. Ignoring since object must be deleted")
 			return ctrl.Result{}, nil
 		}
 		// Error reading the object - requeue the request.
-		logger.Error(err, "Failed to get Namespace")
+		logger.Error(err, "Failed to get Namespace Resource, Requeuing the request")
 		return ctrl.Result{}, err
 	}
 
-	team := ns.GetLabels()[teamLabel]
-	oldTeam, _ := safeNsCache.Load(req.Name)
-	fmt.Println("oldteam", oldTeam)
-	safeNsCache.Set(req.Name, team)
+	projectsToAdd := convertLabelToAppProjectNameset(
+		ns.GetLabels()[projectsLabel],
+	)
+	projectsToRemove := make([]string, 0)
+	oldProjects := safeNsCache.GetProjects(req.Name)
 
-	if team == "snappcloud" {
-		return ctrl.Result{}, nil
-
-	}
-
-	if team == "" {
-
-		// newly created ns, without any team
-		if oldTeam == "" {
-			return ctrl.Result{}, nil
+	for t := range oldProjects {
+		if _, ok := projectsToAdd[t]; !ok {
+			projectsToRemove = append(projectsToRemove, t)
+			logger.Info("Updating Cache: Removing NS:", req.Name, " to AppProject:", t)
+			safeNsCache.LeaveProject(req.Name, t)
+		} else {
+			delete(projectsToAdd, t)
+			logger.Info("Updating Cache: Adding NS:", req.Name, " to AppProject:", t)
+			safeNsCache.JoinProject(req.Name, t)
 		}
+	}
 
-		// unlabeled ns, but it had an old team
-		if oldTeam != "" {
-			err = r.reconcileAppProject(ctx, logger, oldTeam)
-			if err != nil {
-				return ctrl.Result{}, err
-			}
+	var reconciliationErrors *multierror.Error
+	// add ns to new app-projects
+	logger.Info("Reconciling New Teams")
+	for t := range projectsToAdd {
+		logger.Info("Reconciling AppProject: ", t)
+		err = r.reconcileAppProject(ctx, logger, t)
+		if err != nil {
+			logger.Info("Error while Reconciling AppProject ", t, " : ", err.Error())
+			reconciliationErrors = multierror.Append(reconciliationErrors, err)
 		}
-
 	}
 
-	// add ns to new team
-	err = r.reconcileAppProject(ctx, logger, team)
-	if err != nil {
-		return ctrl.Result{}, err
+	// removing ns from old projects
+	logger.Info("Reconciling Old Teams")
+	for _, t := range projectsToRemove {
+		logger.Info("Reconciling AppProject:", t)
+		err = r.reconcileAppProject(ctx, logger, t)
+		if err != nil {
+			logger.Info("Error while Reconciling AppProject ", t, " : ", err.Error())
+			reconciliationErrors = multierror.Append(reconciliationErrors, err)
+		}
 	}
 
-	if oldTeam == "" || oldTeam == team {
-		return ctrl.Result{}, nil
-	}
-
-	// also reconicle oldTeam to remove ns from oldTeam
-	err = r.reconcileAppProject(ctx, logger, oldTeam)
-	if err != nil {
-		return ctrl.Result{}, err
-	}
-
-	return ctrl.Result{}, nil
+	return ctrl.Result{}, reconciliationErrors.ErrorOrNil()
 }
 
 func (r *NamespaceReconciler) reconcileAppProject(ctx context.Context, logger logr.Logger, team string) error {
-	appProj, err := r.createAppProj(ctx, team)
+	appProj, err := r.createAppProj(team)
 	if err != nil {
-		return fmt.Errorf("Error generating AppProj manifest: %v", err)
+		return fmt.Errorf("error generating AppProj manifest: %v", err)
 	}
 
 	// Check if AppProj does not exist and create a new one
@@ -171,11 +238,11 @@ func (r *NamespaceReconciler) reconcileAppProject(ctx context.Context, logger lo
 		logger.Info("Creating AppProj", "AppProj.Name", team)
 		err = r.Create(ctx, appProj)
 		if err != nil {
-			return fmt.Errorf("Error creating AppProj: %v", err)
+			return fmt.Errorf("error creating AppProj: %v", err)
 		}
 		return nil
 	} else if err != nil {
-		return fmt.Errorf("Error getting AppProj: %v", err)
+		return fmt.Errorf("error getting AppProj: %v", err)
 	}
 
 	// If AppProj already exist, check if it is deeply equal with desrired state
@@ -185,30 +252,31 @@ func (r *NamespaceReconciler) reconcileAppProject(ctx context.Context, logger lo
 		found.Spec = appProj.Spec
 		err := r.Update(ctx, found)
 		if err != nil {
-			return fmt.Errorf("Error updating AppProj: %v", err)
+			return fmt.Errorf("error updating AppProj: %v", err)
 		}
 	}
 	return nil
 }
 
-func (r *NamespaceReconciler) createAppProj(ctx context.Context, team string) (*argov1alpha1.AppProject, error) {
+func (r *NamespaceReconciler) createAppProj(team string) (*argov1alpha1.AppProject, error) {
 	fmt.Println("run reconcile on ", team)
-	listOpts := []client.ListOption{
-		client.MatchingLabels(map[string]string{
-			teamLabel: team,
-		}),
-	}
-	nsList := &corev1.NamespaceList{}
-	err := r.List(ctx, nsList, listOpts...)
-	if err != nil {
-		return nil, err
-	}
+	// listOpts := []client.ListOption{
+	// 	client.MatchingLabels(map[string]string{
+	// 		teamLabel: team,
+	// 	}),
+	// }
+	// nsList := &corev1.NamespaceList{}
+	// err := r.List(ctx, nsList, listOpts...)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	desiredNamespaces := safeNsCache.GetNamespaces(team)
 
 	destList := []argov1alpha1.ApplicationDestination{}
 
-	for _, nsItem := range nsList.Items {
+	for nsItem := range desiredNamespaces {
 		destList = append(destList, argov1alpha1.ApplicationDestination{
-			Namespace: nsItem.Name,
+			Namespace: nsItem,
 			Server:    "https://kubernetes.default.svc",
 		})
 
@@ -282,4 +350,13 @@ func appendRepos(repo_list []string, found_repos []string) []string {
 	}
 
 	return res
+}
+
+// ConvertLabelToAppProjectNameset will convert comma separated label value to actual nameset
+func convertLabelToAppProjectNameset(l string) AppProjectNameset {
+	result := make(AppProjectNameset)
+	for _, s := range strings.Split(l, ",") {
+		result[s] = struct{}{}
+	}
+	return result
 }
