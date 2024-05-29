@@ -62,7 +62,7 @@ type SafeNsCache struct {
 	initialized bool
 }
 
-// LeaveProject will add given namespace from given project in SafeNsCache entries
+// JoinProject will remove given namespace from given project in SafeNsCache entries
 // It will update both upward and downward edges in AppProjectNameset and NamespaceNameset
 func (c *SafeNsCache) JoinProject(ns, proj string) {
 	c.mu.Lock()
