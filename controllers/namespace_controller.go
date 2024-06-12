@@ -67,6 +67,12 @@ type SafeNsCache struct {
 func (c *SafeNsCache) JoinProject(ns, proj string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	if _, ok := c.projects[ns]; !ok {
+		c.projects[ns] = make(AppProjectNameset)
+	}
+	if _, ok := c.namespaces[proj]; !ok {
+		c.namespaces[proj] = make(NamespaceNameset)
+	}
 	c.projects[ns][proj] = struct{}{}
 	c.namespaces[proj][ns] = struct{}{}
 }
