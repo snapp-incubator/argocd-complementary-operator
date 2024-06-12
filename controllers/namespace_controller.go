@@ -146,7 +146,7 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	defer r.mu.Unlock()
 
 	logger := log.FromContext(ctx)
-	logger.Info("Reconciling Namespace: ", fmt.Sprint(req.NamespacedName))
+	logger.Info("Reconciling Namespace", "Namespace", fmt.Sprint(req.NamespacedName))
 
 	err := safeNsCache.InitOrPass(r, ctx)
 	if err != nil {
@@ -158,16 +158,16 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	err = r.Get(ctx, req.NamespacedName, ns)
 	if err != nil {
 		if errors.IsNotFound(err) {
-			logger.Info("Namespace not found. Ignoring since object must be deleted")
+			logger.Info("Namespace not found. Ignoring since object must be deleted", "Namespace", fmt.Sprint(req.NamespacedName))
 
 			oldTeams := safeNsCache.GetProjects(req.Name)
 			if len(oldTeams) > 0 {
 				for t := range oldTeams {
 					err := r.reconcileAppProject(ctx, logger, t)
 					if err != nil {
-						logger.Info("Failed to reconcile AppProject [", t, "] for not found resource error recovery: ", err.Error())
+						logger.Error(err, "Failed to reconcile AppProject for not found resource error recovery", "AppProj.Name", fmt.Sprint(t))
 					} else {
-						logger.Info("Successfully reconciled AppProject [", t, "] for not found resource error recovery")
+						logger.Info("Successfully reconciled AppProject for not found resource error recovery", "AppProj.Name", fmt.Sprint(t))
 					}
 				}
 			}
@@ -177,7 +177,7 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 			return ctrl.Result{}, nil
 		}
 		// Error reading the object - requeue the request.
-		logger.Error(err, "Failed to get Namespace Resource, Requeuing the request")
+		logger.Error(err, "Failed to get Namespace Resource, Requeuing the request", "Namespace", fmt.Sprint(req.NamespacedName))
 		return ctrl.Result{}, err
 	}
 
@@ -190,23 +190,23 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	for t := range oldProjects {
 		if _, ok := projectsToAdd[t]; !ok {
 			projectsToRemove = append(projectsToRemove, t)
-			logger.Info("Updating Cache: Removing NS:", req.Name, " to AppProject:", t)
+			logger.Info("Updating Cache: Removing NS from AppProject", "Namespace", req.Name, "AppProj.Name", t)
 			safeNsCache.LeaveProject(req.Name, t)
 		} else {
 			delete(projectsToAdd, t)
-			logger.Info("Updating Cache: Adding NS:", req.Name, " to AppProject:", t)
+			logger.Info("Updating Cache: Adding NS to AppProject:", "Namespace", req.Name, "AppProj.Name", t)
 			safeNsCache.JoinProject(req.Name, t)
 		}
 	}
 
 	var reconciliationErrors *multierror.Error
 	// add ns to new app-projects
-	logger.Info("Reconciling New Teams")
+	logger.Info("Reconciling New Teams", "len", len(projectsToAdd))
 	for t := range projectsToAdd {
-		logger.Info("Reconciling AppProject: ", t)
+		logger.Info("Reconciling AppProject to add new namespaces", "AppProj.Name", t)
 		err = r.reconcileAppProject(ctx, logger, t)
 		if err != nil {
-			logger.Info("Error while Reconciling AppProject ", t, " : ", err.Error())
+			logger.Error(err, "Error while Reconciling AppProject", "AppProj.Name", t)
 			reconciliationErrors = multierror.Append(reconciliationErrors, err)
 		}
 	}
@@ -214,10 +214,10 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// removing ns from old projects
 	logger.Info("Reconciling Old Teams")
 	for _, t := range projectsToRemove {
-		logger.Info("Reconciling AppProject:", t)
+		logger.Info("Reconciling AppProject as on old member", "AppProj.Name", t)
 		err = r.reconcileAppProject(ctx, logger, t)
 		if err != nil {
-			logger.Info("Error while Reconciling AppProject ", t, " : ", err.Error())
+			logger.Error(err, "Error while Reconciling AppProject", "AppProj.Name", t)
 			reconciliationErrors = multierror.Append(reconciliationErrors, err)
 		}
 	}
@@ -260,16 +260,6 @@ func (r *NamespaceReconciler) reconcileAppProject(ctx context.Context, logger lo
 
 func (r *NamespaceReconciler) createAppProj(team string) (*argov1alpha1.AppProject, error) {
 	fmt.Println("run reconcile on ", team)
-	// listOpts := []client.ListOption{
-	// 	client.MatchingLabels(map[string]string{
-	// 		teamLabel: team,
-	// 	}),
-	// }
-	// nsList := &corev1.NamespaceList{}
-	// err := r.List(ctx, nsList, listOpts...)
-	// if err != nil {
-	// 	return nil, err
-	// }
 	desiredNamespaces := safeNsCache.GetNamespaces(team)
 
 	destList := []argov1alpha1.ApplicationDestination{}
