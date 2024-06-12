@@ -113,8 +113,10 @@ func (c *SafeNsCache) InitOrPass(r *NamespaceReconciler, ctx context.Context) er
 		return nil
 	}
 
-	nsList := &corev1.NamespaceList{}
-	err := r.List(ctx, nsList)
+	appProjList := &argov1alpha1.AppProjectList{}
+	err := r.List(ctx, appProjList,
+		&client.ListOptions{Namespace: baseNs},
+	)
 	if err != nil {
 		return err
 	}
@@ -122,14 +124,12 @@ func (c *SafeNsCache) InitOrPass(r *NamespaceReconciler, ctx context.Context) er
 	c.namespaces = make(map[string]NamespaceNameset)
 	c.projects = make(map[string]AppProjectNameset)
 
-	for _, nsItem := range nsList.Items {
-		projects := convertLabelToAppProjectNameset(
-			nsItem.GetLabels()[projectsLabel],
-		)
-		for project := range projects {
-			c.JoinProject(nsItem.Name, project)
+	for _, apItem := range appProjList.Items {
+		for _, dest := range apItem.Spec.Destinations {
+			c.JoinProject(dest.Namespace, apItem.Name)
 		}
 	}
+
 	return nil
 }
 
@@ -218,7 +218,7 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	// removing ns from old projects
-	logger.Info("Reconciling Old Teams")
+	logger.Info("Reconciling Old Teams", "len", len(projectsToAdd))
 	for _, t := range projectsToRemove {
 		logger.Info("Reconciling AppProject as on old member", "AppProj.Name", t)
 		err = r.reconcileAppProject(ctx, logger, t)
