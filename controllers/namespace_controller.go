@@ -112,6 +112,9 @@ func (c *SafeNsCache) InitOrPass(r *NamespaceReconciler, ctx context.Context) er
 	if c.initialized {
 		return nil
 	}
+	defer func() {
+		c.initialized = true
+	}()
 
 	appProjList := &argov1alpha1.AppProjectList{}
 	err := r.List(ctx, appProjList,
@@ -126,6 +129,9 @@ func (c *SafeNsCache) InitOrPass(r *NamespaceReconciler, ctx context.Context) er
 
 	for _, apItem := range appProjList.Items {
 		for _, dest := range apItem.Spec.Destinations {
+			if apItem.Name == "default" {
+				continue
+			}
 			c.JoinProject(dest.Namespace, apItem.Name)
 		}
 	}
@@ -205,6 +211,11 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
+	// update cache: adding new team to cache
+	for t := range projectsToAdd {
+		safeNsCache.JoinProject(req.Name, t)
+	}
+
 	var reconciliationErrors *multierror.Error
 	// add ns to new app-projects
 	logger.Info("Reconciling New Teams", "len", len(projectsToAdd))
@@ -265,7 +276,6 @@ func (r *NamespaceReconciler) reconcileAppProject(ctx context.Context, logger lo
 }
 
 func (r *NamespaceReconciler) createAppProj(team string) (*argov1alpha1.AppProject, error) {
-	fmt.Println("run reconcile on ", team)
 	desiredNamespaces := safeNsCache.GetNamespaces(team)
 
 	destList := []argov1alpha1.ApplicationDestination{}
@@ -351,8 +361,13 @@ func appendRepos(repo_list []string, found_repos []string) []string {
 // ConvertLabelToAppProjectNameset will convert comma separated label value to actual nameset
 func convertLabelToAppProjectNameset(l string) AppProjectNameset {
 	result := make(AppProjectNameset)
-	for _, s := range strings.Split(l, ",") {
-		result[s] = struct{}{}
+	if l == "" {
+		return result
+	}
+	for _, s := range strings.Split(l, ".") {
+		if s != "" {
+			result[s] = struct{}{}
+		}
 	}
 	return result
 }
