@@ -293,7 +293,7 @@ func (r *NamespaceReconciler) createAppProj(team string) (*argov1alpha1.AppProje
 	repo_list := strings.Split(repo_env, ",")
 
 	// Get cluster scoped teams
-	team_env := os.Getenv("TEAMS")
+	team_env := os.Getenv("CLUSTER_ADMIN_TEAMS")
 	team_list := strings.Split(team_env, ",")
 
 	includeAllGroupKind := []metav1.GroupKind{
@@ -335,7 +335,7 @@ func (r *NamespaceReconciler) createAppProj(team string) (*argov1alpha1.AppProje
 			},
 		},
 	}
-	if isTeamClusterScoped(team, team_list) {
+	if isTeamClusterAdmin(team, team_list) {
 		appProj.Spec.ClusterResourceWhitelist = includeAllGroupKind
 	} else {
 		appProj.Spec.ClusterResourceBlacklist = includeAllGroupKind
@@ -381,8 +381,8 @@ func convertLabelToAppProjectNameset(l string) AppProjectNameset {
 	return result
 }
 
-func isTeamClusterScoped(team string, clusterScopedList []string) bool {
-	for _, tm := range clusterScopedList {
+func isTeamClusterAdmin(team string, clusterAdminList []string) bool {
+	for _, tm := range clusterAdminList {
 		if team == tm {
 			return true
 		}

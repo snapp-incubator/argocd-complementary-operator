@@ -56,6 +56,6 @@ spec:
         - configMapRef:
              name: public-repos
         - configMapRef:
-             name: cluster-scoped-teams
+             name: cluster-admin-teams
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10
