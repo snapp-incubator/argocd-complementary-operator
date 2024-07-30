@@ -1,6 +1,6 @@
 module github.com/snapp-incubator/argocd-complementary-operator
 
-go 1.17
+go 1.22
 
 require (
 	github.com/argoproj/argo-cd/v2 v2.0.5
