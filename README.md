@@ -6,7 +6,10 @@ Add ArgocdUser CRD to be able to create static ArgoCD user for each argocduser.
 Also, it creates ArgoCD project based on lables you have on the namespaces.
 
 ## Instructions
-```
+
+Here is the ArgoCD user created using operator:
+
+```yaml
 apiVersion: argocd.snappcloud.io/v1alpha1
 kind: ArgocdUser
 metadata:
@@ -23,6 +26,7 @@ spec:
     - user1
     - user2
 ```
+
 ### Development
 
 * `make generate` update the generated code for that resource type.
