@@ -1,6 +1,14 @@
-# [ArgoCD](https://argo-cd.readthedocs.io/en/stable/) Complementary Operator
+# 
 
-> Manage your ArgoCD users and project with ease and some lables
+<h1 align="center"> <a href="https://argo-cd.readthedocs.io/en/stable/">ArgoCD</a> Complementary Operator </h1>
+<h6 align="center">Manage your ArgoCD users and project with ease and some lables!</h6>
+
+<p align="center">
+    <img alt="GitHub Workflow Status" src="https://img.shields.io/github/actions/workflow/status/snapp-incubator/argocd-complementary-operator/ci.yml?logo=github&style=for-the-badge">
+    <img alt="GitHub repo size" src="https://img.shields.io/github/repo-size/snapp-incubator/argocd-complementary-operator?logo=github&style=for-the-badge">
+    <img alt="GitHub tag (with filter)" src="https://img.shields.io/github/v/tag/snapp-incubator/argocd-complementary-operator?style=for-the-badge&logo=git">
+    <img alt="GitHub go.mod Go version (subdirectory of monorepo)" src="https://img.shields.io/github/go-mod/go-version/snapp-incubator/argocd-complementary-operator?style=for-the-badge&logo=go">
+</p>
 
 Add ArgocdUser CRD to be able to create static ArgoCD user for each argocduser.
 Also, it creates ArgoCD project based on lables you have on the namespaces.
