@@ -1,5 +1,9 @@
-# argocd-complementary-operator
+# [ArgoCD](https://argo-cd.readthedocs.io/en/stable/) Complementary Operator
+
+> Manage your ArgoCD users and project with ease and some lables
+
 Add ArgocdUser CRD to be able to create static ArgoCD user for each argocduser.
+Also, it creates ArgoCD project based on lables you have on the namespaces.
 
 ## Instructions
 ```
