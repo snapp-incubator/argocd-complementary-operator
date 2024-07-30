@@ -1,7 +1,7 @@
 # 
 
 <h1 align="center"> <a href="https://argo-cd.readthedocs.io/en/stable/">ArgoCD</a> Complementary Operator </h1>
-<h6 align="center">Manage your ArgoCD users and project with ease and some lables!</h6>
+<h6 align="center">Manage your ArgoCD users and project with ease and some labels!</h6>
 
 <p align="center">
     <img alt="GitHub Workflow Status" src="https://img.shields.io/github/actions/workflow/status/snapp-incubator/argocd-complementary-operator/ci.yml?logo=github&style=for-the-badge">
