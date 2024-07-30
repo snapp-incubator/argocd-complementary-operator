@@ -10,8 +10,9 @@
     <img alt="GitHub go.mod Go version (subdirectory of monorepo)" src="https://img.shields.io/github/go-mod/go-version/snapp-incubator/argocd-complementary-operator?style=for-the-badge&logo=go">
 </p>
 
-Add `ArgocdUser` CRD to be able to create static ArgoCD user for each argocduser.
-Also, it creates [ArgoCD projects](https://argo-cd.readthedocs.io/en/stable/user-guide/projects/) based on lables you have on the namespaces.
+Add `ArgocdUser` CRD to be able to create static ArgoCD user for each `ArgocdUser`.
+Also, it creates [ArgoCD projects](https://argo-cd.readthedocs.io/en/stable/user-guide/projects/) based on lables you have on the namespaces beside the users
+defined as `ArgocdUser`.
 
 ## Instructions
 
