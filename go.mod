@@ -4,7 +4,7 @@ go 1.22
 
 require (
 	github.com/argoproj/argo-cd/v2 v2.0.5
-	github.com/go-logr/logr v0.4.0
+	github.com/go-logr/logr v1.4.2
 	github.com/hashicorp/go-multierror v1.0.0
 	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.13.0
