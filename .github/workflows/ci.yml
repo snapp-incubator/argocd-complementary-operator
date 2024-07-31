@@ -32,7 +32,7 @@ jobs:
       - run: make test
       - uses: codecov/codecov-action@v4.5.0
         with:
-          files: coverage.out
+          files: cover.out
           token: ${{ secrets.CODECOV_TOKEN }}
           slug: snapp-incubator/argocd-complementary-operator
   docker:
