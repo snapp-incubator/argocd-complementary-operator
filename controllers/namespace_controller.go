@@ -387,9 +387,10 @@ func appendRepos(repo_list []string, found_repos []string) []string {
 	return res
 }
 
-// ConvertLabelToAppProjectNameset will convert comma separated label value to actual nameset.
+// ConvertLabelToAppProjectNameset will convert period separated label value to actual nameset.
 func convertLabelToAppProjectNameset(l string) AppProjectNameset {
 	result := make(AppProjectNameset)
+
 	if l == "" {
 		return result
 	}

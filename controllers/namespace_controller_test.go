@@ -128,4 +128,52 @@ var _ = Describe("namespace controller", func() {
 			})
 		})
 	})
+
+	// Changing the namespace label and checking if the appProjects are updated
+	Context("when changing namespace team label with multiple teams", func() {
+		It("Should update appProject with multiple labels", func() {
+			By("Removing from AppProject and creating new AppProject", func() {
+				// update test namespace with cloudy-team label.
+				testNS := &corev1.Namespace{
+					ObjectMeta: metav1.ObjectMeta{
+						Name:   "test-ns",
+						Labels: map[string]string{teamLabel: "cloudy-team.rainy-team"},
+					},
+				}
+				Expect(k8sClient.Update(ctx, testNS)).Should(Succeed())
+
+				// make sure test namespace is updated.
+				testNSLookup := types.NamespacedName{Name: "test-ns"}
+				Expect(k8sClient.Get(ctx, testNSLookup, testNS)).Should(Succeed())
+
+				// appproject should be created in user-argocd for cloudy-team because of having
+				// namespace.
+				cloudyAppProj := new(argov1alpha1.AppProject)
+				cloudyAppProjLookup := types.NamespacedName{Name: "cloudy-team", Namespace: "user-argocd"}
+				Eventually(func() bool {
+					err := k8sClient.Get(ctx, cloudyAppProjLookup, cloudyAppProj)
+					return err == nil
+				}, timeout, interval).Should(BeTrue())
+
+				// make sure appproject has the correct fields.
+				Expect(cloudyAppProj.Name).Should(Equal(cloudyAppProjLookup.Name))
+				Expect(cloudyAppProj.Namespace).Should(Equal(cloudyAppProjLookup.Namespace))
+				Expect(cloudyAppProj.Spec.Destinations[0].Namespace).Should(Equal(testNS.Name))
+
+				// appproject should be created in user-argocd for rainy-team because of having
+				// namespace.
+				rainyAppProj := new(argov1alpha1.AppProject)
+				rainyAppProjLookup := types.NamespacedName{Name: "rainy-team", Namespace: "user-argocd"}
+				Eventually(func() bool {
+					err := k8sClient.Get(ctx, rainyAppProjLookup, rainyAppProj)
+					return err == nil
+				}, timeout, interval).Should(BeTrue())
+
+				// make sure appproject has the correct fields.
+				Expect(rainyAppProj.Name).Should(Equal(rainyAppProjLookup.Name))
+				Expect(rainyAppProj.Namespace).Should(Equal(rainyAppProjLookup.Namespace))
+				Expect(rainyAppProj.Spec.Destinations[0].Namespace).Should(Equal(testNS.Name))
+			})
+		})
+	})
 })
