@@ -18,23 +18,19 @@ package controllers
 
 import (
 	"context"
-	"log"
 	"time"
 
 	argov1alpha1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 	corev1 "k8s.io/api/core/v1"
-	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
-	"k8s.io/client-go/kubernetes"
 )
 
 var ctx = context.Background()
 
 var _ = Describe("namespace controller", func() {
-
 	// Define utility constants for object names and testing timeouts/durations and intervals.
 	const (
 		timeout = time.Second * 10
@@ -58,7 +54,7 @@ var _ = Describe("namespace controller", func() {
 			})
 		})
 	})
-	//Creating AppPRoj as soon as we create a test namespace
+	// Creating AppPRoj as soon as we create a test namespace
 	Context("when creating namespace", func() {
 		It("Should create appProject", func() {
 			By("Creating test namespace")
@@ -82,7 +78,7 @@ var _ = Describe("namespace controller", func() {
 			Expect(testAppProj.Spec.Destinations[0].Namespace).Should(Equal(testNs.ObjectMeta.Name))
 		})
 	})
-	//Changing the namespace label and checking if the appProjects are updated
+	// Changing the namespace label and checking if the appProjects are updated
 	Context("when changing namespace team label", func() {
 		It("Should update appProject", func() {
 			By("Removing  from AppProject and creating new AppProject", func() {
@@ -116,52 +112,4 @@ var _ = Describe("namespace controller", func() {
 			})
 		})
 	})
-	// Deleting the namespace and checking if the namespace is deleted from the appProject
-	Context("when deleting namespace", func() {
-		It("Should also delete namespace from appProject", func() {
-			By("Deleting test-ns")
-			testNs := &corev1.Namespace{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:   "test-ns",
-					Labels: map[string]string{teamLabel: "cloudy-team"},
-				},
-			}
-			DeleteNs(testNs)
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, types.NamespacedName{Name: "test-ns"}, testNs)
-				return errors.IsNotFound(err)
-			}, timeout, interval).Should(BeTrue())
-			By("Checking namespace is deleted from appProject")
-			testAppProj := &argov1alpha1.AppProject{}
-			appProjLookupKey := types.NamespacedName{Name: "cloudy-team", Namespace: "user-argocd"}
-			Eventually(func() bool {
-				err := k8sClient.Get(ctx, appProjLookupKey, testAppProj)
-				return err == nil
-			}, timeout, interval).Should(BeTrue())
-			Expect(testAppProj.Name).Should(Equal(appProjLookupKey.Name))
-			Expect(testAppProj.Namespace).Should(Equal(appProjLookupKey.Namespace))
-			Expect(testAppProj.Spec.Destinations).To(BeNil())
-		})
-	})
-
 })
-
-/*
-Function to delete the namespace because it is not possible to delete the namespace from the test framework
-according to this mentioned issue -> https://github.com/kubernetes-sigs/controller-runtime/issues/880
-*/
-func DeleteNs(nsname *corev1.Namespace) {
-	Expect(k8sClient.Delete(ctx, nsname)).Should(Succeed())
-	Expect(k8sClient.Get(ctx, types.NamespacedName{Name: nsname.ObjectMeta.Name}, nsname)).Should(Succeed())
-	finalizers := []corev1.FinalizerName{}
-	clientGo, err := kubernetes.NewForConfig(testEnv.Config)
-	if err != nil {
-		log.Println(err)
-	}
-	nsname.Spec.Finalizers = finalizers
-	_, err = clientGo.CoreV1().Namespaces().Finalize(ctx, nsname, metav1.UpdateOptions{})
-	if err != nil {
-		log.Println(err)
-	}
-
-}

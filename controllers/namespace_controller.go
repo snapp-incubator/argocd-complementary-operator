@@ -69,12 +69,15 @@ type (
 func (c *SafeNsCache) JoinProject(ns, proj string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	if _, ok := c.projects[ns]; !ok {
 		c.projects[ns] = make(AppProjectNameset)
 	}
+
 	if _, ok := c.namespaces[proj]; !ok {
 		c.namespaces[proj] = make(NamespaceNameset)
 	}
+
 	c.projects[ns][proj] = struct{}{}
 	c.namespaces[proj][ns] = struct{}{}
 }
@@ -84,29 +87,38 @@ func (c *SafeNsCache) JoinProject(ns, proj string) {
 func (c *SafeNsCache) LeaveProject(ns, proj string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	delete(c.projects[ns], proj)
 	delete(c.namespaces[proj], ns)
 }
 
-// GetProjects will return name-set for given Namespace name
+// GetProjects will return name-set for given Namespace name. It creates a copy
+// from current name-set.
 func (c *SafeNsCache) GetProjects(ns string) AppProjectNameset {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	r := make(AppProjectNameset)
+
 	for k := range c.projects[ns] {
 		r[k] = struct{}{}
 	}
+
 	return r
 }
 
-// GetNamespaces will return name-set for given AppProject name
+// GetNamespaces will return name-set for given AppProject name. It creates a copy
+// from current name-set.
 func (c *SafeNsCache) GetNamespaces(proj string) NamespaceNameset {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+
 	r := make(NamespaceNameset)
+
 	for k := range c.namespaces[proj] {
 		r[k] = struct{}{}
 	}
+
 	return r
 }
 
@@ -168,28 +180,31 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	ns := &corev1.Namespace{}
+
 	// First Fetch Phase
-	err = r.Get(ctx, req.NamespacedName, ns)
-	if err != nil {
+	if err := r.Get(ctx, req.NamespacedName, ns); err != nil {
 		if errors.IsNotFound(err) {
 			logger.Info("Namespace not found. Ignoring since object must be deleted", "Namespace", fmt.Sprint(req.NamespacedName))
 
 			oldTeams := safeNsCache.GetProjects(req.Name)
 			if len(oldTeams) > 0 {
 				for t := range oldTeams {
-					err := r.reconcileAppProject(ctx, logger, t)
-					if err != nil {
+					if err := r.reconcileAppProject(ctx, logger, t); err != nil {
 						logger.Error(err, "Failed to reconcile AppProject for not found resource error recovery", "AppProj.Name", fmt.Sprint(t))
-					} else {
-						logger.Info("Successfully reconciled AppProject for not found resource error recovery", "AppProj.Name", fmt.Sprint(t))
+
+						continue
 					}
+
+					logger.Info("Successfully reconciled AppProject for not found resource error recovery", "AppProj.Name", fmt.Sprint(t))
 				}
 			}
+
 			// Request object not found, could have been deleted after reconcile request.
 			// Owned objects are automatically garbage collected. For additional cleanup logic use finalizers.
 			// Return and don't requeue
 			return ctrl.Result{}, nil
 		}
+
 		// Error reading the object - requeue the request.
 		logger.Error(err, "Failed to get Namespace Resource, Requeuing the request", "Namespace", fmt.Sprint(req.NamespacedName))
 		return ctrl.Result{}, err
@@ -223,8 +238,7 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	logger.Info("Reconciling New Teams", "len", len(projectsToAdd))
 	for t := range projectsToAdd {
 		logger.Info("Reconciling AppProject to add new namespaces", "AppProj.Name", t)
-		err = r.reconcileAppProject(ctx, logger, t)
-		if err != nil {
+		if err := r.reconcileAppProject(ctx, logger, t); err != nil {
 			logger.Error(err, "Error while Reconciling AppProject", "AppProj.Name", t)
 			reconciliationErrors = multierror.Append(reconciliationErrors, err)
 		}
@@ -252,28 +266,32 @@ func (r *NamespaceReconciler) reconcileAppProject(ctx context.Context, logger lo
 
 	// Check if AppProj does not exist and create a new one
 	found := &argov1alpha1.AppProject{}
-	err = r.Get(ctx, types.NamespacedName{Name: team, Namespace: baseNs}, found)
-	if err != nil && errors.IsNotFound(err) {
-		logger.Info("Creating AppProj", "AppProj.Name", team)
-		err = r.Create(ctx, appProj)
-		if err != nil {
-			return fmt.Errorf("error creating AppProj: %v", err)
+	if err := r.Get(ctx, types.NamespacedName{Name: team, Namespace: baseNs}, found); err != nil {
+		if errors.IsNotFound(err) {
+			logger.Info("Creating AppProj", "AppProj.Name", team)
+			if err := r.Create(ctx, appProj); err != nil {
+				return fmt.Errorf("error creating AppProj: %v", err)
+			}
+
+			return nil
+		} else {
+			return fmt.Errorf("error getting AppProj: %v", err)
 		}
-		return nil
-	} else if err != nil {
-		return fmt.Errorf("error getting AppProj: %v", err)
 	}
 
-	// If AppProj already exist, check if it is deeply equal with desrired state
 	appProj.Spec.SourceRepos = appendRepos(appProj.Spec.SourceRepos, found.Spec.SourceRepos)
+
+	// If AppProj already exist, check if it is deeply equal with desrired state
 	if !reflect.DeepEqual(appProj.Spec, found.Spec) {
-		logger.Info("Updating AppProj", "AppProj.Name", team)
+		logger.Info("Founded AppProj is not equad to desired one, doing the upgrade", "AppProj.Name", team)
+
 		found.Spec = appProj.Spec
-		err := r.Update(ctx, found)
-		if err != nil {
+
+		if err := r.Update(ctx, found); err != nil {
 			return fmt.Errorf("error updating AppProj: %v", err)
 		}
 	}
+
 	return nil
 }
 
@@ -336,11 +354,13 @@ func (r *NamespaceReconciler) createAppProj(team string) (*argov1alpha1.AppProje
 			},
 		},
 	}
+
 	if isTeamClusterAdmin(team, team_list) {
 		appProj.Spec.ClusterResourceWhitelist = includeAllGroupKind
 	} else {
 		appProj.Spec.ClusterResourceBlacklist = includeAllGroupKind
 	}
+
 	return appProj, nil
 }
 
@@ -367,17 +387,19 @@ func appendRepos(repo_list []string, found_repos []string) []string {
 	return res
 }
 
-// ConvertLabelToAppProjectNameset will convert comma separated label value to actual nameset
+// ConvertLabelToAppProjectNameset will convert comma separated label value to actual nameset.
 func convertLabelToAppProjectNameset(l string) AppProjectNameset {
 	result := make(AppProjectNameset)
 	if l == "" {
 		return result
 	}
+
 	for _, s := range strings.Split(l, ".") {
 		if s != "" {
 			result[s] = struct{}{}
 		}
 	}
+
 	return result
 }
 
