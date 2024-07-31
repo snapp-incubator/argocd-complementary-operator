@@ -1,4 +1,3 @@
-
 ---
 apiVersion: rbac.authorization.k8s.io/v1
 kind: ClusterRole
@@ -29,6 +28,32 @@ rules:
   - patch
   - update
   - watch
+- apiGroups:
+  - argocd.snappcloud.io
+  resources:
+  - argocdusers
+  verbs:
+  - create
+  - delete
+  - get
+  - list
+  - patch
+  - update
+  - watch
+- apiGroups:
+  - argocd.snappcloud.io
+  resources:
+  - argocdusers/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - argocd.snappcloud.io
+  resources:
+  - argocdusers/status
+  verbs:
+  - get
+  - patch
+  - update
 - apiGroups:
   - argoproj.io
   resources:
@@ -62,32 +87,6 @@ rules:
   - ""
   resources:
   - namespaces/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
-  - argocd.snappcloud.io
-  resources:
-  - argocdusers
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - argocd.snappcloud.io
-  resources:
-  - argocdusers/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - argocd.snappcloud.io
-  resources:
-  - argocdusers/status
   verbs:
   - get
   - patch

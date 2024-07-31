@@ -67,7 +67,7 @@ type ArgocdUserReconciler struct {
 func (r *ArgocdUserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
 	argocduser := &argocduserv1alpha1.ArgocdUser{}
-	err := r.Client.Get(context.TODO(), req.NamespacedName, argocduser)
+	err := r.Get(context.TODO(), req.NamespacedName, argocduser)
 	if err != nil {
 		log.Error(err, "Failed to get argocduser")
 		return ctrl.Result{}, err
@@ -92,7 +92,7 @@ func (r *ArgocdUserReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	return ctrl.Result{}, nil
 }
 
-func (r *ArgocdUserReconciler) createArgocdStaticUser(ctx context.Context, req ctrl.Request, argocduser *argocduserv1alpha1.ArgocdUser, roleName string, ciPass string, argoUsers []string) (ctrl.Result, error) {
+func (r *ArgocdUserReconciler) createArgocdStaticUser(ctx context.Context, _ ctrl.Request, argocduser *argocduserv1alpha1.ArgocdUser, roleName string, ciPass string, argoUsers []string) (ctrl.Result, error) {
 	err := r.UpdateUserArgocdConfig(ctx, argocduser, roleName, ciPass)
 	if err != nil {
 		return ctrl.Result{}, err
@@ -107,7 +107,7 @@ func (r *ArgocdUserReconciler) createArgocdStaticUser(ctx context.Context, req c
 func (r *ArgocdUserReconciler) UpdateUserArgocdConfig(ctx context.Context, argocduser *argocduserv1alpha1.ArgocdUser, roleName string, ciPass string) error {
 	log := log.FromContext(ctx)
 	configMap := &corev1.ConfigMap{}
-	err := r.Client.Get(ctx, types.NamespacedName{Name: userArgocdStaticUserCM, Namespace: userArgocdNS}, configMap)
+	err := r.Get(ctx, types.NamespacedName{Name: userArgocdStaticUserCM, Namespace: userArgocdNS}, configMap)
 	if err != nil {
 		log.Error(err, "Failed to get configMap")
 		return err
@@ -130,7 +130,7 @@ func (r *ArgocdUserReconciler) UpdateUserArgocdConfig(ctx context.Context, argoc
 	}
 	staticPassByte, _ := json.Marshal(staticPassword)
 
-	err = r.Client.Patch(context.Background(), &corev1.Secret{
+	err = r.Patch(context.Background(), &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
 			Namespace: userArgocdNS,
 			Name:      userArgocdSecret,
@@ -141,14 +141,13 @@ func (r *ArgocdUserReconciler) UpdateUserArgocdConfig(ctx context.Context, argoc
 		return err
 	}
 	return nil
-
 }
 
 func (r *ArgocdUserReconciler) AddArgoUsersToGroup(ctx context.Context, argocduser *argocduserv1alpha1.ArgocdUser, roleName string, argoUsers []string) error {
 	log := log.FromContext(ctx)
 	group := &userv1.Group{}
 	groupName := argocduser.Name + "-" + roleName
-	err := r.Client.Get(ctx, types.NamespacedName{Name: groupName}, group)
+	err := r.Get(ctx, types.NamespacedName{Name: groupName}, group)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			log.Info("Failed get group, going to create group")
@@ -157,7 +156,7 @@ func (r *ArgocdUserReconciler) AddArgoUsersToGroup(ctx context.Context, argocdus
 					Name: groupName,
 				},
 			}
-			err = r.Client.Create(ctx, group)
+			err = r.Create(ctx, group)
 			if err != nil {
 				log.Error(err, "Failed to create group")
 				return err
@@ -165,7 +164,7 @@ func (r *ArgocdUserReconciler) AddArgoUsersToGroup(ctx context.Context, argocdus
 		}
 	}
 	group.Users = argoUsers
-	err = r.Client.Update(ctx, group)
+	err = r.Update(ctx, group)
 	if err != nil {
 		log.Error(err, "Failed to update group")
 		return err
@@ -177,7 +176,7 @@ func (r *ArgocdUserReconciler) AddArgoUsersToGroup(ctx context.Context, argocdus
 func (r *ArgocdUserReconciler) AddArgocdRBACPolicy(ctx context.Context, argocduser *argocduserv1alpha1.ArgocdUser) error {
 	log := log.FromContext(ctx)
 	found := &corev1.ConfigMap{}
-	err := r.Client.Get(ctx, types.NamespacedName{Name: userArgocdRbacPolicyCM, Namespace: userArgocdNS}, found)
+	err := r.Get(ctx, types.NamespacedName{Name: userArgocdRbacPolicyCM, Namespace: userArgocdNS}, found)
 	if err != nil {
 		log.Error(err, "Failed to get cm")
 		return err
@@ -202,7 +201,7 @@ func (r *ArgocdUserReconciler) AddArgocdRBACPolicy(ctx context.Context, argocdus
 		"p, role:" + argocduser.Name + "-admin, exec, create, " + argocduser.Name + "/*, allow",
 	}
 
-	//add argocd rbac policy
+	// add argocd rbac policy
 	is_changed := false
 	for _, policy := range policies {
 		duplicatePolicy := false
@@ -217,7 +216,7 @@ func (r *ArgocdUserReconciler) AddArgocdRBACPolicy(ctx context.Context, argocdus
 		}
 	}
 	if is_changed {
-		errRbac := r.Client.Update(ctx, found)
+		errRbac := r.Update(ctx, found)
 		if errRbac != nil {
 			log.Error(err, "error in updating argocd-rbac-cm")
 			return err

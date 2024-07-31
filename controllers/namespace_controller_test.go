@@ -146,7 +146,8 @@ var _ = Describe("namespace controller", func() {
 
 })
 
-/*Function to delete the namespace because it is not possible to delete the namespace from the test framework
+/*
+Function to delete the namespace because it is not possible to delete the namespace from the test framework
 according to this mentioned issue -> https://github.com/kubernetes-sigs/controller-runtime/issues/880
 */
 func DeleteNs(nsname *corev1.Namespace) {

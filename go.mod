@@ -7,13 +7,13 @@ require (
 	github.com/go-logr/logr v0.4.0
 	github.com/hashicorp/go-multierror v1.0.0
 	github.com/onsi/ginkgo v1.16.4
-	github.com/onsi/gomega v1.13.0
+	github.com/onsi/gomega v1.15.0
 	github.com/openshift/api v0.0.0-20180801171038-322a19404e37
 	golang.org/x/crypto v0.0.0-20220507011949-2cf3adece122
 	k8s.io/api v0.21.4
 	k8s.io/apimachinery v0.21.4
 	k8s.io/client-go v11.0.1-0.20190816222228-6d55c1b1f1ca+incompatible
-	sigs.k8s.io/controller-runtime v0.9.2
+	sigs.k8s.io/controller-runtime v0.9.7
 )
 
 require (
@@ -117,15 +117,15 @@ require (
 	go.starlark.net v0.0.0-20200306205701-8dd3e2ee1dd5 // indirect
 	go.uber.org/atomic v1.7.0 // indirect
 	go.uber.org/multierr v1.6.0 // indirect
-	go.uber.org/zap v1.17.0 // indirect
+	go.uber.org/zap v1.19.0 // indirect
 	golang.org/x/exp v0.0.0-20210220032938-85be41e4509f // indirect
 	golang.org/x/net v0.0.0-20211112202133-69e39bad7dc2 // indirect
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d // indirect
 	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c // indirect
-	golang.org/x/sys v0.0.0-20210615035016-665e8c7367d1 // indirect
+	golang.org/x/sys v0.0.0-20210817190340-bfb29a6856f2 // indirect
 	golang.org/x/term v0.0.0-20210220032956-6a3ed077a48d // indirect
 	golang.org/x/text v0.3.6 // indirect
-	golang.org/x/time v0.0.0-20210611083556-38a9dc6acbc6 // indirect
+	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
 	gomodules.xyz/jsonpatch/v2 v2.2.0 // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20201110150050-8816d57aaa9a // indirect
@@ -138,7 +138,7 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b // indirect
-	k8s.io/apiextensions-apiserver v0.21.2 // indirect
+	k8s.io/apiextensions-apiserver v0.21.4 // indirect
 	k8s.io/apiserver v0.21.4 // indirect
 	k8s.io/cli-runtime v0.21.4 // indirect
 	k8s.io/component-base v0.21.4 // indirect
@@ -148,7 +148,7 @@ require (
 	k8s.io/kube-openapi v0.0.0-20210305001622-591a79e4bda7 // indirect
 	k8s.io/kubectl v0.21.0 // indirect
 	k8s.io/kubernetes v1.21.0 // indirect
-	k8s.io/utils v0.0.0-20210527160623-6fdb442a123b // indirect
+	k8s.io/utils v0.0.0-20210802155522-efc7438f0176 // indirect
 	sigs.k8s.io/kustomize/api v0.8.8 // indirect
 	sigs.k8s.io/kustomize/kyaml v0.10.17 // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.1.2 // indirect
@@ -157,6 +157,7 @@ require (
 
 replace (
 	github.com/argoproj/gitops-engine => github.com/argoproj/gitops-engine v0.4.0
+	github.com/googleapis/gnostic => github.com/google/gnostic v0.5.5
 	k8s.io/api => k8s.io/api v0.21.0
 	k8s.io/apiextensions-apiserver => k8s.io/apiextensions-apiserver v0.21.4
 	k8s.io/apimachinery => k8s.io/apimachinery v0.21.4
@@ -183,5 +184,4 @@ replace (
 	k8s.io/mount-utils => k8s.io/mount-utils v0.21.4
 	k8s.io/pod-security-admission => k8s.io/pod-security-admission v0.22.0
 	k8s.io/sample-apiserver => k8s.io/sample-apiserver v0.21.4
-	github.com/googleapis/gnostic => github.com/google/gnostic v0.5.5
 )

@@ -53,14 +53,16 @@ var safeNsCache = &SafeNsCache{initialized: false}
 
 type Nameset map[string]struct{}
 
-type AppProjectNameset Nameset
-type NamespaceNameset Nameset
-type SafeNsCache struct {
-	mu          sync.Mutex
-	projects    map[string]AppProjectNameset
-	namespaces  map[string]NamespaceNameset
-	initialized bool
-}
+type (
+	AppProjectNameset Nameset
+	NamespaceNameset  Nameset
+	SafeNsCache       struct {
+		mu          sync.Mutex
+		projects    map[string]AppProjectNameset
+		namespaces  map[string]NamespaceNameset
+		initialized bool
+	}
+)
 
 // JoinProject will remove given namespace from given project in SafeNsCache entries
 // It will update both upward and downward edges in AppProjectNameset and NamespaceNameset
@@ -285,7 +287,6 @@ func (r *NamespaceReconciler) createAppProj(team string) (*argov1alpha1.AppProje
 			Namespace: nsItem,
 			Server:    "https://kubernetes.default.svc",
 		})
-
 	}
 
 	// Get public repos
@@ -341,7 +342,6 @@ func (r *NamespaceReconciler) createAppProj(team string) (*argov1alpha1.AppProje
 		appProj.Spec.ClusterResourceBlacklist = includeAllGroupKind
 	}
 	return appProj, nil
-
 }
 
 // SetupWithManager sets up the controller with the Manager.
