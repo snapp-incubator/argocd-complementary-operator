@@ -45,48 +45,70 @@ type NamespaceReconciler struct {
 }
 
 const (
+	// move a namespace into a argocd appproj using the label.
 	projectsLabel = "argocd.snappcloud.io/appproj"
-	baseNs        = "user-argocd"
+	// namespace can host argo application for the argocd appproj using the label.
+	sourceLabel = "argocd.snappcloud.io/source"
+
+	baseNs = "user-argocd"
 )
 
-var safeNsCache = &SafeNsCache{initialized: false}
+var NamespaceCache = &SafeNsCache{
+	lock:        sync.Mutex{},
+	projects:    nil,
+	namespaces:  nil,
+	initialized: false,
+}
 
 type Nameset map[string]struct{}
 
 type (
-	AppProjectNameset Nameset
-	NamespaceNameset  Nameset
-	SafeNsCache       struct {
-		mu          sync.Mutex
-		projects    map[string]AppProjectNameset
-		namespaces  map[string]NamespaceNameset
+	SafeNsCache struct {
+		lock        sync.Mutex
+		projects    map[string]Nameset
+		namespaces  map[string]Nameset
+		sources     map[string]Nameset
 		initialized bool
 	}
 )
 
-// JoinProject will remove given namespace from given project in SafeNsCache entries
-// It will update both upward and downward edges in AppProjectNameset and NamespaceNameset
+// Trust given source in the given project.
+func (c *SafeNsCache) TrustSource(ns, proj string) {
+	if _, ok := c.sources[proj]; !ok {
+		c.sources[proj] = make(Nameset)
+	}
+
+	c.sources[proj][ns] = struct{}{}
+}
+
+// UnTrust given source in the given project.
+func (c *SafeNsCache) UnTrustSource(ns, proj string) {
+	delete(c.sources[proj], ns)
+}
+
+// JoinProject will add given namespace into given project.
+// It will update both upward and downward edges in AppProjectNameset and NamespaceNameset.
 func (c *SafeNsCache) JoinProject(ns, proj string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.lock.Lock()
+	defer c.lock.Unlock()
 
 	if _, ok := c.projects[ns]; !ok {
-		c.projects[ns] = make(AppProjectNameset)
+		c.projects[ns] = make(Nameset)
 	}
 
 	if _, ok := c.namespaces[proj]; !ok {
-		c.namespaces[proj] = make(NamespaceNameset)
+		c.namespaces[proj] = make(Nameset)
 	}
 
 	c.projects[ns][proj] = struct{}{}
 	c.namespaces[proj][ns] = struct{}{}
 }
 
-// LeaveProject will remove given namespace from given project in SafeNsCache entries
+// LeaveProject will remove given namespace from given project.
 // It will update both upward and downward edges in AppProjectNameset and NamespaceNameset
 func (c *SafeNsCache) LeaveProject(ns, proj string) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+	c.lock.Lock()
+	defer c.lock.Unlock()
 
 	delete(c.projects[ns], proj)
 	delete(c.namespaces[proj], ns)
@@ -94,11 +116,11 @@ func (c *SafeNsCache) LeaveProject(ns, proj string) {
 
 // GetProjects will return name-set for given Namespace name. It creates a copy
 // from current name-set.
-func (c *SafeNsCache) GetProjects(ns string) AppProjectNameset {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (c *SafeNsCache) GetProjects(ns string) Nameset {
+	c.lock.Lock()
+	defer c.lock.Unlock()
 
-	r := make(AppProjectNameset)
+	r := make(Nameset)
 
 	for k := range c.projects[ns] {
 		r[k] = struct{}{}
@@ -109,13 +131,28 @@ func (c *SafeNsCache) GetProjects(ns string) AppProjectNameset {
 
 // GetNamespaces will return name-set for given AppProject name. It creates a copy
 // from current name-set.
-func (c *SafeNsCache) GetNamespaces(proj string) NamespaceNameset {
-	c.mu.Lock()
-	defer c.mu.Unlock()
+func (c *SafeNsCache) GetNamespaces(proj string) Nameset {
+	c.lock.Lock()
+	defer c.lock.Unlock()
 
-	r := make(NamespaceNameset)
+	r := make(Nameset)
 
 	for k := range c.namespaces[proj] {
+		r[k] = struct{}{}
+	}
+
+	return r
+}
+
+// GetSources will return name-set for given AppProject name. It creates a copy
+// from current name-set.
+func (c *SafeNsCache) GetSources(proj string) Nameset {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	r := make(Nameset)
+
+	for k := range c.sources[proj] {
 		r[k] = struct{}{}
 	}
 
@@ -138,8 +175,8 @@ func (c *SafeNsCache) InitOrPass(r *NamespaceReconciler, ctx context.Context) er
 		return err
 	}
 
-	c.namespaces = make(map[string]NamespaceNameset)
-	c.projects = make(map[string]AppProjectNameset)
+	c.namespaces = make(map[string]Nameset)
+	c.projects = make(map[string]Nameset)
 
 	for _, apItem := range appProjList.Items {
 		for _, dest := range apItem.Spec.Destinations {
@@ -174,7 +211,7 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	logger := log.FromContext(ctx)
 	logger.Info("Reconciling Namespace", "Namespace", fmt.Sprint(req.NamespacedName))
 
-	err := safeNsCache.InitOrPass(r, ctx)
+	err := NamespaceCache.InitOrPass(r, ctx)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -186,7 +223,7 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		if errors.IsNotFound(err) {
 			logger.Info("Namespace not found. Ignoring since object must be deleted", "Namespace", fmt.Sprint(req.NamespacedName))
 
-			oldTeams := safeNsCache.GetProjects(req.Name)
+			oldTeams := NamespaceCache.GetProjects(req.Name)
 			if len(oldTeams) > 0 {
 				for t := range oldTeams {
 					if err := r.reconcileAppProject(ctx, logger, t); err != nil {
@@ -210,27 +247,48 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		return ctrl.Result{}, err
 	}
 
-	projectsToAdd := convertLabelToAppProjectNameset(
+	sourcesToAdd := labelToProjects(
+		ns.GetLabels()[sourceLabel],
+	)
+	currentSources := NamespaceCache.GetSources(req.Name)
+
+	for source := range currentSources {
+		if _, ok := sourcesToAdd[source]; !ok {
+			logger.Info("Updating Cache: Removing source from AppProject", "Namespace", req.Name, "AppProj.Name", source)
+			NamespaceCache.UnTrustSource(req.Name, source)
+		} else {
+			delete(sourcesToAdd, source)
+			logger.Info("Updating Cache: Adding source to AppProject:", "Namespace", req.Name, "AppProj.Name", source)
+			NamespaceCache.TrustSource(req.Name, source)
+		}
+	}
+
+	// update cache by adding new team to the cache
+	for t := range sourcesToAdd {
+		NamespaceCache.TrustSource(req.Name, t)
+	}
+
+	projectsToAdd := labelToProjects(
 		ns.GetLabels()[projectsLabel],
 	)
 	projectsToRemove := make([]string, 0)
-	oldProjects := safeNsCache.GetProjects(req.Name)
+	currentProjects := NamespaceCache.GetProjects(req.Name)
 
-	for t := range oldProjects {
+	for t := range currentProjects {
 		if _, ok := projectsToAdd[t]; !ok {
 			projectsToRemove = append(projectsToRemove, t)
 			logger.Info("Updating Cache: Removing NS from AppProject", "Namespace", req.Name, "AppProj.Name", t)
-			safeNsCache.LeaveProject(req.Name, t)
+			NamespaceCache.LeaveProject(req.Name, t)
 		} else {
 			delete(projectsToAdd, t)
 			logger.Info("Updating Cache: Adding NS to AppProject:", "Namespace", req.Name, "AppProj.Name", t)
-			safeNsCache.JoinProject(req.Name, t)
+			NamespaceCache.JoinProject(req.Name, t)
 		}
 	}
 
 	// update cache: adding new team to cache
 	for t := range projectsToAdd {
-		safeNsCache.JoinProject(req.Name, t)
+		NamespaceCache.JoinProject(req.Name, t)
 	}
 
 	var reconciliationErrors *multierror.Error
@@ -296,15 +354,23 @@ func (r *NamespaceReconciler) reconcileAppProject(ctx context.Context, logger lo
 }
 
 func (r *NamespaceReconciler) createAppProj(team string) (*argov1alpha1.AppProject, error) {
-	desiredNamespaces := safeNsCache.GetNamespaces(team)
+	desiredNamespaces := NamespaceCache.GetNamespaces(team)
 
-	destList := []argov1alpha1.ApplicationDestination{}
+	destinations := []argov1alpha1.ApplicationDestination{}
 
-	for nsItem := range desiredNamespaces {
-		destList = append(destList, argov1alpha1.ApplicationDestination{
-			Namespace: nsItem,
+	for desiredNamespace := range desiredNamespaces {
+		destinations = append(destinations, argov1alpha1.ApplicationDestination{
+			Namespace: desiredNamespace,
 			Server:    "https://kubernetes.default.svc",
 		})
+	}
+
+	sources := NamespaceCache.GetSources(team)
+
+	sourceNamespaces := []string{}
+
+	for source := range sources {
+		sourceNamespaces = append(sourceNamespaces, source)
 	}
 
 	// Get public repos
@@ -329,7 +395,7 @@ func (r *NamespaceReconciler) createAppProj(team string) (*argov1alpha1.AppProje
 		},
 		Spec: argov1alpha1.AppProjectSpec{
 			SourceRepos:  repo_list,
-			Destinations: destList,
+			Destinations: destinations,
 			NamespaceResourceBlacklist: []metav1.GroupKind{
 				{
 					Group: "",
@@ -387,9 +453,9 @@ func appendRepos(repo_list []string, found_repos []string) []string {
 	return res
 }
 
-// ConvertLabelToAppProjectNameset will convert period separated label value to actual nameset.
-func convertLabelToAppProjectNameset(l string) AppProjectNameset {
-	result := make(AppProjectNameset)
+// labelToProjects will convert period separated label value to actual nameset.
+func labelToProjects(l string) Nameset {
+	result := make(Nameset)
 
 	if l == "" {
 		return result
