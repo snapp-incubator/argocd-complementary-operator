@@ -27,7 +27,7 @@ import (
 	"github.com/snapp-incubator/argocd-complementary-operator/test/utils"
 )
 
-const namespace = "argocd-complementary-operator-v2-system"
+const namespace = "argocd-complementary-operator-system"
 
 var _ = Describe("controller", Ordered, func() {
 	BeforeAll(func() {
@@ -60,7 +60,7 @@ var _ = Describe("controller", Ordered, func() {
 			var err error
 
 			// projectimage stores the name of the image used in the example
-			var projectimage = "example.com/argocd-complementary-operator-v2:v0.0.1"
+			projectimage := "example.com/argocd-complementary-operator:v0.0.1"
 
 			By("building the manager(Operator) image")
 			cmd := exec.Command("make", "docker-build", fmt.Sprintf("IMG=%s", projectimage))
@@ -116,7 +116,6 @@ var _ = Describe("controller", Ordered, func() {
 				return nil
 			}
 			EventuallyWithOffset(1, verifyControllerUp, time.Minute, time.Second).Should(Succeed())
-
 		})
 	})
 })

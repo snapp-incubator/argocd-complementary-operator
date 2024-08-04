@@ -8,6 +8,6 @@ layout:
 plugins:
   manifests.sdk.operatorframework.io/v2: {}
   scorecard.sdk.operatorframework.io/v2: {}
-projectName: argocd-complementary-operator-v2
+projectName: argocd-complementary-operator
 repo: github.com/snapp-incubator/argocd-complementary-operator
 version: "3"
