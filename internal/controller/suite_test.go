@@ -14,7 +14,7 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controllers
+package controller_test
 
 import (
 	"context"
@@ -24,6 +24,7 @@ import (
 	argov1alpha1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/snapp-incubator/argocd-complementary-operator/internal/controller"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -59,8 +60,8 @@ var _ = BeforeSuite(func() {
 	By("bootstrapping test environment")
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
-			filepath.Join("..", "config", "crd", "bases"),
-			filepath.Join("..", "config", "dependency"),
+			filepath.Join("..", "..", "config", "crd", "bases"),
+			filepath.Join("..", "..", "config", "dependency"),
 		},
 		ErrorIfCRDPathMissing: true,
 	}
@@ -87,7 +88,7 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
-	err = (&NamespaceReconciler{
+	err = (&controller.NamespaceReconciler{
 		Client: k8sManager.GetClient(),
 		Scheme: k8sManager.GetScheme(),
 	}).SetupWithManager(k8sManager)

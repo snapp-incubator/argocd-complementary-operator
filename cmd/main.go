@@ -33,7 +33,7 @@ import (
 
 	userv1 "github.com/openshift/api/user/v1"
 	argocduserv1alpha1 "github.com/snapp-incubator/argocd-complementary-operator/api/v1alpha1"
-	"github.com/snapp-incubator/argocd-complementary-operator/controllers"
+	"github.com/snapp-incubator/argocd-complementary-operator/internal/controller"
 
 	//+kubebuilder:scaffold:imports
 	argov1alpha1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
@@ -81,7 +81,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controllers.ArgocdUserReconciler{
+	if err = (&controller.ArgocdUserReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
@@ -89,7 +89,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	if err = (&controllers.NamespaceReconciler{
+	if err = (&controller.NamespaceReconciler{
 		Client: mgr.GetClient(),
 		Scheme: mgr.GetScheme(),
 	}).SetupWithManager(mgr); err != nil {
