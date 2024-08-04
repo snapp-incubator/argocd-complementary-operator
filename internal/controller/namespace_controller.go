@@ -46,9 +46,9 @@ type NamespaceReconciler struct {
 
 const (
 	// move a namespace into a argocd appproj using the label.
-	projectsLabel = "argocd.snappcloud.io/appproj"
+	ProjectsLabel = "argocd.snappcloud.io/appproj"
 	// namespace can host argo application for the argocd appproj using the label.
-	sourceLabel = "argocd.snappcloud.io/source"
+	SourceLabel = "argocd.snappcloud.io/source"
 
 	baseNs = "user-argocd"
 )
@@ -248,7 +248,7 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	sourcesToAdd := labelToProjects(
-		ns.GetLabels()[sourceLabel],
+		ns.GetLabels()[SourceLabel],
 	)
 	currentSources := NamespaceCache.GetSources(req.Name)
 
@@ -269,7 +269,7 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	}
 
 	projectsToAdd := labelToProjects(
-		ns.GetLabels()[projectsLabel],
+		ns.GetLabels()[ProjectsLabel],
 	)
 	projectsToRemove := make([]string, 0)
 	currentProjects := NamespaceCache.GetProjects(req.Name)

@@ -23,6 +23,7 @@ import (
 	argov1alpha1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/snapp-incubator/argocd-complementary-operator/internal/controller"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -33,9 +34,8 @@ var ctx = context.Background()
 var _ = Describe("namespace controller", func() {
 	// Define utility constants for object names and testing timeouts/durations and intervals.
 	const (
-		timeout   = time.Second * 20
-		interval  = time.Millisecond * 30
-		teamLabel = "argocd.snappcloud.io/appproj"
+		timeout  = time.Second * 20
+		interval = time.Millisecond * 30
 	)
 	// Creating user-argocd namespace
 	Context("When cluster bootstrap", func() {
@@ -62,7 +62,7 @@ var _ = Describe("namespace controller", func() {
 			testNS := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:   "test-ns",
-					Labels: map[string]string{teamLabel: "test-team"},
+					Labels: map[string]string{controller.ProjectsLabel: "test-team"},
 				},
 			}
 			Expect(k8sClient.Create(ctx, testNS)).Should(Succeed())
@@ -93,7 +93,7 @@ var _ = Describe("namespace controller", func() {
 				testNS := &corev1.Namespace{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:   "test-ns",
-						Labels: map[string]string{teamLabel: "cloudy-team"},
+						Labels: map[string]string{controller.ProjectsLabel: "cloudy-team"},
 					},
 				}
 				Expect(k8sClient.Update(ctx, testNS)).Should(Succeed())
@@ -137,7 +137,7 @@ var _ = Describe("namespace controller", func() {
 				testNS := &corev1.Namespace{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:   "test-ns",
-						Labels: map[string]string{teamLabel: "cloudy-team.rainy-team"},
+						Labels: map[string]string{controller.ProjectsLabel: "cloudy-team.rainy-team"},
 					},
 				}
 				Expect(k8sClient.Update(ctx, testNS)).Should(Succeed())
