@@ -124,7 +124,7 @@ var _ = Describe("namespace controller", func() {
 				}, timeout, interval).Should(BeTrue())
 				Expect(testAppProj.Name).Should(Equal(appProjLookupKey.Name))
 				Expect(testAppProj.Namespace).Should(Equal(appProjLookupKey.Namespace))
-				Eventually(testAppProj.Spec.Destinations, timeout, interval).Should(BeNil())
+				Eventually(testAppProj.Spec.Destinations, timeout, interval).Should(BeEmpty())
 			})
 		})
 	})
