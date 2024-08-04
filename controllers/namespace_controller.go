@@ -365,7 +365,6 @@ func (r *NamespaceReconciler) createAppProj(team string) (*argov1alpha1.AppProje
 		})
 	}
 
-	/* TODO (parham): use sources after doing the SDK upgrade.
 	sources := NamespaceCache.GetSources(team)
 
 	sourceNamespaces := []string{}
@@ -373,7 +372,6 @@ func (r *NamespaceReconciler) createAppProj(team string) (*argov1alpha1.AppProje
 	for source := range sources {
 		sourceNamespaces = append(sourceNamespaces, source)
 	}
-	*/
 
 	// Get public repos
 	repo_env := os.Getenv("PUBLIC_REPOS")
@@ -396,8 +394,9 @@ func (r *NamespaceReconciler) createAppProj(team string) (*argov1alpha1.AppProje
 			Namespace: baseNs,
 		},
 		Spec: argov1alpha1.AppProjectSpec{
-			SourceRepos:  repo_list,
-			Destinations: destinations,
+			SourceRepos:      repo_list,
+			Destinations:     destinations,
+			SourceNamespaces: sourceNamespaces,
 			NamespaceResourceBlacklist: []metav1.GroupKind{
 				{
 					Group: "",
