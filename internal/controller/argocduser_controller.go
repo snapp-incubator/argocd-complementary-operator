@@ -73,16 +73,16 @@ func (r *ArgocdUserReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	_, err = r.createArgocdStaticUser(ctx, req, argocduser, "admin", argocduser.Spec.Admin.CIPass, argocduser.Spec.Admin.Users)
-	if err != nil {
+	if err := r.createArgocdStaticUser(ctx, req, argocduser, "admin", argocduser.Spec.Admin.CIPass, argocduser.Spec.Admin.Users); err != nil {
 		log.Error(err, "Failed create argocd static user admin")
 		return ctrl.Result{}, err
 	}
-	_, err = r.createArgocdStaticUser(ctx, req, argocduser, "view", argocduser.Spec.View.CIPass, argocduser.Spec.View.Users)
-	if err != nil {
+
+	if err := r.createArgocdStaticUser(ctx, req, argocduser, "view", argocduser.Spec.View.CIPass, argocduser.Spec.View.Users); err != nil {
 		log.Error(err, "Failed create argocd static user view")
 		return ctrl.Result{}, err
 	}
+
 	err = r.AddArgocdRBACPolicy(ctx, argocduser)
 	if err != nil {
 		log.Error(err, "Failed to add argocd rbac policy")
@@ -92,16 +92,23 @@ func (r *ArgocdUserReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	return ctrl.Result{}, nil
 }
 
-func (r *ArgocdUserReconciler) createArgocdStaticUser(ctx context.Context, _ ctrl.Request, argocduser *argocduserv1alpha1.ArgocdUser, roleName string, ciPass string, argoUsers []string) (ctrl.Result, error) {
-	err := r.UpdateUserArgocdConfig(ctx, argocduser, roleName, ciPass)
-	if err != nil {
-		return ctrl.Result{}, err
+func (r *ArgocdUserReconciler) createArgocdStaticUser(
+	ctx context.Context,
+	_ ctrl.Request,
+	argocduser *argocduserv1alpha1.ArgocdUser,
+	roleName string,
+	ciPass string,
+	argoUsers []string,
+) error {
+	if err := r.UpdateUserArgocdConfig(ctx, argocduser, roleName, ciPass); err != nil {
+		return err
 	}
-	err = r.AddArgoUsersToGroup(ctx, argocduser, roleName, argoUsers)
-	if err != nil {
-		return ctrl.Result{}, err
+
+	if err := r.AddArgoUsersToGroup(ctx, argocduser, roleName, argoUsers); err != nil {
+		return err
 	}
-	return ctrl.Result{}, nil
+
+	return nil
 }
 
 func (r *ArgocdUserReconciler) UpdateUserArgocdConfig(ctx context.Context, argocduser *argocduserv1alpha1.ArgocdUser, roleName string, ciPass string) error {

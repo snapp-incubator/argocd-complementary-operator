@@ -317,10 +317,7 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 }
 
 func (r *NamespaceReconciler) reconcileAppProject(ctx context.Context, logger logr.Logger, team string) error {
-	appProj, err := r.createAppProj(team)
-	if err != nil {
-		return fmt.Errorf("error generating AppProj manifest: %v", err)
-	}
+	appProj := r.createAppProj(team)
 
 	// Check if AppProj does not exist and create a new one
 	found := &argov1alpha1.AppProject{}
@@ -353,7 +350,7 @@ func (r *NamespaceReconciler) reconcileAppProject(ctx context.Context, logger lo
 	return nil
 }
 
-func (r *NamespaceReconciler) createAppProj(team string) (*argov1alpha1.AppProject, error) {
+func (r *NamespaceReconciler) createAppProj(team string) *argov1alpha1.AppProject {
 	desiredNamespaces := NamespaceCache.GetNamespaces(team)
 
 	destinations := []argov1alpha1.ApplicationDestination{}
@@ -428,7 +425,7 @@ func (r *NamespaceReconciler) createAppProj(team string) (*argov1alpha1.AppProje
 		appProj.Spec.ClusterResourceBlacklist = includeAllGroupKind
 	}
 
-	return appProj, nil
+	return appProj
 }
 
 // SetupWithManager sets up the controller with the Manager.
