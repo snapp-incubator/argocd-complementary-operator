@@ -1,114 +1,93 @@
-# argocd-complementary-operator-v2
-// TODO(user): Add simple overview of use/purpose
+#
 
-## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
+<h1 align="center"> <a href="https://argo-cd.readthedocs.io/en/stable/">ArgoCD</a> Complementary Operator </h1>
+<h6 align="center">Manage your ArgoCD users and project with ease and some labels!</h6>
 
-## Getting Started
+<p align="center">
+    <img alt="GitHub Workflow Status" src="https://img.shields.io/github/actions/workflow/status/snapp-incubator/argocd-complementary-operator/ci.yml?logo=github&style=for-the-badge">
+    <img alt="GitHub repo size" src="https://img.shields.io/github/repo-size/snapp-incubator/argocd-complementary-operator?logo=github&style=for-the-badge">
+    <img alt="GitHub tag (with filter)" src="https://img.shields.io/github/v/tag/snapp-incubator/argocd-complementary-operator?style=for-the-badge&logo=git">
+    <img alt="GitHub go.mod Go version (subdirectory of monorepo)" src="https://img.shields.io/github/go-mod/go-version/snapp-incubator/argocd-complementary-operator?style=for-the-badge&logo=go">
+</p>
 
-### Prerequisites
-- go version v1.21.0+
-- docker version 17.03+.
-- kubectl version v1.11.3+.
-- Access to a Kubernetes v1.11.3+ cluster.
+Add `ArgocdUser` CRD to be able to create static ArgoCD user for each `ArgocdUser`.
+Also, it creates [ArgoCD projects](https://argo-cd.readthedocs.io/en/stable/user-guide/projects/) based on lables you have on the namespaces beside the users
+defined as `ArgocdUser`.
 
-### To Deploy on the cluster
-**Build and push your image to the location specified by `IMG`:**
+## Instructions
 
-```sh
-make docker-build docker-push IMG=<some-registry>/argocd-complementary-operator-v2:tag
+Here is the ArgoCD user created using operator:
+
+```yaml
+apiVersion: argocd.snappcloud.io/v1alpha1
+kind: ArgocdUser
+metadata:
+  name: {{argocduserName}}
+spec:
+  admin:
+    ciPass: ******
+    users:
+    - user1
+    - user2
+  view:
+    ciPass: ******
+    users:
+    - user1
+    - user2
 ```
 
-**NOTE:** This image ought to be published in the personal registry you specified.
-And it is required to have access to pull the image from the working environment.
-Make sure you have the proper permission to the registry if the above commands don’t work.
+### Development
 
-**Install the CRDs into the cluster:**
+- `make generate` update the generated code for that resource type.
+- `make manifests` Generating CRD manifests.
+- `make test` Run tests.
 
-```sh
-make install
+### Build
+
+Export your image name:
+
+```
+export IMG=ghcr.io/your-repo-path/image-name:latest
 ```
 
-**Deploy the Manager to the cluster with the image specified by `IMG`:**
+- `make build` builds Golang app locally.
+- `make docker-build` build docker image locally.
+- `make docker-push` push container image to registry.
 
-```sh
-make deploy IMG=<some-registry>/argocd-complementary-operator-v2:tag
-```
+### Run, Deploy
 
-> **NOTE**: If you encounter RBAC errors, you may need to grant yourself cluster-admin
-privileges or be logged in as admin.
+- `make run` run app locally
+- `make deploy` deploy to k8s.
 
-**Create instances of your solution**
-You can apply the samples (examples) from the config/sample:
+### Clean up
 
-```sh
-kubectl apply -k config/samples/
-```
+- `make undeploy` delete resouces in k8s.
 
->**NOTE**: Ensure that the samples has default values to test it out.
+## Metrics
 
-### To Uninstall
-**Delete the instances (CRs) from the cluster:**
+|                     Metric                     | Notes                                                                                                                                                                                                                                  |
+| :--------------------------------------------: | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|      `controller_runtime_active_workers`       | Number of currently used workers per controller                                                                                                                                                                                        |
+| `controller_runtime_max_concurrent_reconciles` | Maximum number of concurrent reconciles per controller                                                                                                                                                                                 |
+|  `controller_runtime_reconcile_errors_total`   | Total number of reconciliation errors per controller                                                                                                                                                                                   |
+|  `controller_runtime_reconcile_time_seconds`   | Length of time per reconciliation per controller                                                                                                                                                                                       |
+|      `controller_runtime_reconcile_total`      | Total number of reconciliations per controller                                                                                                                                                                                         |
+|     `rest_client_request_latency_seconds`      | Request latency in seconds. Broken down by verb and URL.                                                                                                                                                                               |
+|          `rest_client_requests_total`          | Number of HTTP requests, partitioned by status code, method, and host.                                                                                                                                                                 |
+|             `workqueue_adds_total`             | Total number of adds handled by workqueue                                                                                                                                                                                              |
+|               `workqueue_depth`                | Current depth of workqueue                                                                                                                                                                                                             |
+| `workqueue_longest_running_processor_seconds`  | How many seconds has the longest running processor for workqueue been running.                                                                                                                                                         |
+|       `workqueue_queue_duration_seconds`       | How long in seconds an item stays in workqueue before being requested                                                                                                                                                                  |
+|           `workqueue_retries_total`            | Total number of retries handled by workqueue                                                                                                                                                                                           |
+|      `workqueue_unfinished_work_seconds`       | How many seconds of work has been done that is in progress and hasn't been observed by `work_duration`. Large values indicate stuck threads. One can deduce the number of stuck threads by observing the rate at which this increases. |
+|       `workqueue_work_duration_seconds`        | How long in seconds processing an item from workqueue takes.                                                                                                                                                                           |
 
-```sh
-kubectl delete -k config/samples/
-```
+## Security
 
-**Delete the APIs(CRDs) from the cluster:**
+### Reporting security vulnerabilities
 
-```sh
-make uninstall
-```
-
-**UnDeploy the controller from the cluster:**
-
-```sh
-make undeploy
-```
-
-## Project Distribution
-
-Following are the steps to build the installer and distribute this project to users.
-
-1. Build the installer for the image built and published in the registry:
-
-```sh
-make build-installer IMG=<some-registry>/argocd-complementary-operator-v2:tag
-```
-
-NOTE: The makefile target mentioned above generates an 'install.yaml'
-file in the dist directory. This file contains all the resources built
-with Kustomize, which are necessary to install this project without
-its dependencies.
-
-2. Using the installer
-
-Users can just run kubectl apply -f <URL for YAML BUNDLE> to install the project, i.e.:
-
-```sh
-kubectl apply -f https://raw.githubusercontent.com/<org>/argocd-complementary-operator-v2/<tag or branch>/dist/install.yaml
-```
-
-## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
-
-**NOTE:** Run `make help` for more information on all potential `make` targets
-
-More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
+If you find a security vulnerability or any security related issues, please DO NOT file a public issue, instead send your report privately to cloud@snapp.cab. Security reports are greatly appreciated and we will publicly thank you for it.
 
 ## License
 
-Copyright 2024.
-
-Licensed under the Apache License, Version 2.0 (the "License");
-you may not use this file except in compliance with the License.
-You may obtain a copy of the License at
-
-    http://www.apache.org/licenses/LICENSE-2.0
-
-Unless required by applicable law or agreed to in writing, software
-distributed under the License is distributed on an "AS IS" BASIS,
-WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
-See the License for the specific language governing permissions and
-limitations under the License.
-
+Apache-2.0 License, see [LICENSE](LICENSE).
