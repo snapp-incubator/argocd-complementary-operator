@@ -6,7 +6,7 @@ require (
 	github.com/argoproj/argo-cd/v2 v2.0.5
 	github.com/go-logr/logr v0.4.0
 	github.com/hashicorp/go-multierror v1.0.0
-	github.com/onsi/ginkgo v1.16.4
+	github.com/onsi/ginkgo v1.16.5
 	github.com/onsi/gomega v1.15.0
 	github.com/openshift/api v0.0.0-20180801171038-322a19404e37
 	golang.org/x/crypto v0.0.0-20220507011949-2cf3adece122
