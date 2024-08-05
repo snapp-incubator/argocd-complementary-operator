@@ -31,7 +31,7 @@ import (
 
 var ctx = context.Background()
 
-var _ = Describe("namespace controller", func() {
+var _ = Describe("namespace controller to create teams", func() {
 	// Define utility constants for object names and testing timeouts/durations and intervals.
 	const (
 		timeout  = time.Second * 20
@@ -61,8 +61,11 @@ var _ = Describe("namespace controller", func() {
 			// create test namespace with test-team label.
 			testNS := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:   "test-ns",
-					Labels: map[string]string{controller.ProjectsLabel: "test-team"},
+					Name: "test-ns",
+					Labels: map[string]string{
+						controller.ProjectsLabel: "test-team",
+						controller.SourceLabel:   "test-team",
+					},
 				},
 			}
 			Expect(k8sClient.Create(ctx, testNS)).Should(Succeed())
@@ -82,6 +85,8 @@ var _ = Describe("namespace controller", func() {
 			Expect(testAppProj.Name).Should(Equal(testAppProjLookup.Name))
 			Expect(testAppProj.Namespace).Should(Equal(testAppProjLookup.Namespace))
 			Expect(testAppProj.Spec.Destinations[0].Namespace).Should(Equal(testNS.Name))
+			Expect(testAppProj.Spec.SourceNamespaces).Should(HaveLen(1))
+			Expect(testAppProj.Spec.SourceNamespaces[0]).Should(Equal(testNS.Name))
 		})
 	})
 

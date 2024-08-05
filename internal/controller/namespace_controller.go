@@ -46,8 +46,12 @@ type NamespaceReconciler struct {
 
 const (
 	// move a namespace into a argocd appproj using the label.
+	// for example argocd.snappcloud.io/appproj: snapppay means snapppay argo project
+	// can deploy resources into the labeled namespace.
 	ProjectsLabel = "argocd.snappcloud.io/appproj"
 	// namespace can host argo application for the argocd appproj using the label.
+	// for example argocd.snappcloud.io/source: snapppay means argo applications
+	// in the labeled namespace can belongs to the snapppay argo project.
 	SourceLabel = "argocd.snappcloud.io/source"
 
 	baseNs = "user-argocd"
@@ -74,16 +78,16 @@ type (
 
 // Trust given source in the given project.
 func (c *SafeNsCache) TrustSource(ns, proj string) {
-	if _, ok := c.sources[proj]; !ok {
-		c.sources[proj] = make(Nameset)
+	if _, ok := c.sources[ns]; !ok {
+		c.sources[ns] = make(Nameset)
 	}
 
-	c.sources[proj][ns] = struct{}{}
+	c.sources[ns][proj] = struct{}{}
 }
 
 // UnTrust given source in the given project.
 func (c *SafeNsCache) UnTrustSource(ns, proj string) {
-	delete(c.sources[proj], ns)
+	delete(c.sources[ns], proj)
 }
 
 // JoinProject will add given namespace into given project.
@@ -152,8 +156,10 @@ func (c *SafeNsCache) GetSources(proj string) Nameset {
 
 	r := make(Nameset)
 
-	for k := range c.sources[proj] {
-		r[k] = struct{}{}
+	for k, v := range c.sources {
+		if _, ok := v[proj]; ok {
+			r[k] = struct{}{}
+		}
 	}
 
 	return r
@@ -163,20 +169,22 @@ func (c *SafeNsCache) InitOrPass(r *NamespaceReconciler, ctx context.Context) er
 	if c.initialized {
 		return nil
 	}
+
 	defer func() {
 		c.initialized = true
 	}()
 
 	appProjList := &argov1alpha1.AppProjectList{}
-	err := r.List(ctx, appProjList,
-		&client.ListOptions{Namespace: baseNs},
-	)
-	if err != nil {
-		return err
-	}
 
 	c.namespaces = make(map[string]Nameset)
 	c.projects = make(map[string]Nameset)
+	c.sources = make(map[string]Nameset)
+
+	if err := r.List(ctx, appProjList,
+		&client.ListOptions{Namespace: baseNs},
+	); err != nil {
+		return err
+	}
 
 	for _, apItem := range appProjList.Items {
 		for _, dest := range apItem.Spec.Destinations {
@@ -209,10 +217,9 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	defer r.mu.Unlock()
 
 	logger := log.FromContext(ctx)
-	logger.Info("Reconciling Namespace", "Namespace", fmt.Sprint(req.NamespacedName))
+	logger.Info("reconciling namespace", "namespace", req.NamespacedName)
 
-	err := NamespaceCache.InitOrPass(r, ctx)
-	if err != nil {
+	if err := NamespaceCache.InitOrPass(r, ctx); err != nil {
 		return ctrl.Result{}, err
 	}
 
@@ -221,18 +228,18 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	// First Fetch Phase
 	if err := r.Get(ctx, req.NamespacedName, ns); err != nil {
 		if errors.IsNotFound(err) {
-			logger.Info("Namespace not found. Ignoring since object must be deleted", "Namespace", fmt.Sprint(req.NamespacedName))
+			logger.Info("namespace not found. ignoring since object must be deleted", "namespace", req.NamespacedName)
 
 			oldTeams := NamespaceCache.GetProjects(req.Name)
 			if len(oldTeams) > 0 {
 				for t := range oldTeams {
 					if err := r.reconcileAppProject(ctx, logger, t); err != nil {
-						logger.Error(err, "Failed to reconcile AppProject for not found resource error recovery", "AppProj.Name", fmt.Sprint(t))
+						logger.Error(err, "failed to reconcile appproject for not found resource error recovery", "name", t)
 
 						continue
 					}
 
-					logger.Info("Successfully reconciled AppProject for not found resource error recovery", "AppProj.Name", fmt.Sprint(t))
+					logger.Info("successfully reconciled appproject for not found resource error recovery", "name", t)
 				}
 			}
 
@@ -243,31 +250,34 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 
 		// Error reading the object - requeue the request.
-		logger.Error(err, "Failed to get Namespace Resource, Requeuing the request", "Namespace", fmt.Sprint(req.NamespacedName))
+		logger.Error(err, "failed to get namespace resource, requeuing the request", "namespace", req.NamespacedName)
 		return ctrl.Result{}, err
 	}
 
+	// current namespace is trusted by the teams that are mentioned in the laebl.
 	sourcesToAdd := labelToProjects(
 		ns.GetLabels()[SourceLabel],
 	)
+
 	currentSources := NamespaceCache.GetSources(req.Name)
 
-	for source := range currentSources {
-		if _, ok := sourcesToAdd[source]; !ok {
-			logger.Info("Updating Cache: Removing source from AppProject", "Namespace", req.Name, "AppProj.Name", source)
-			NamespaceCache.UnTrustSource(req.Name, source)
+	for s := range currentSources {
+		if _, ok := sourcesToAdd[s]; !ok {
+			logger.Info("namespace cannot contain applications belongs to project", "namespace", req.Name, "project", s)
+			NamespaceCache.UnTrustSource(req.Name, s)
 		} else {
-			delete(sourcesToAdd, source)
-			logger.Info("Updating Cache: Adding source to AppProject:", "Namespace", req.Name, "AppProj.Name", source)
-			NamespaceCache.TrustSource(req.Name, source)
+			delete(sourcesToAdd, s)
+			logger.Info("namespace can contain applications belongs to project", "namespace", req.Name, "project", s)
+			NamespaceCache.TrustSource(req.Name, s)
 		}
 	}
 
-	// update cache by adding new team to the cache
-	for t := range sourcesToAdd {
-		NamespaceCache.TrustSource(req.Name, t)
+	for s := range sourcesToAdd {
+		logger.Info("namespace can contain applications belongs to project", "namespace", req.Name, "source", s)
+		NamespaceCache.TrustSource(req.Name, s)
 	}
 
+	// current namespace can be used by these argocd projects to deploy resources.
 	projectsToAdd := labelToProjects(
 		ns.GetLabels()[ProjectsLabel],
 	)
@@ -277,38 +287,40 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	for t := range currentProjects {
 		if _, ok := projectsToAdd[t]; !ok {
 			projectsToRemove = append(projectsToRemove, t)
-			logger.Info("Updating Cache: Removing NS from AppProject", "Namespace", req.Name, "AppProj.Name", t)
+			logger.Info("removing namespace from project destinations", "namespace", req.Name, "project", t)
 			NamespaceCache.LeaveProject(req.Name, t)
 		} else {
 			delete(projectsToAdd, t)
-			logger.Info("Updating Cache: Adding NS to AppProject:", "Namespace", req.Name, "AppProj.Name", t)
+			logger.Info("adding namespace to project destinations", "namespace", req.Name, "project", t)
 			NamespaceCache.JoinProject(req.Name, t)
 		}
 	}
 
-	// update cache: adding new team to cache
 	for t := range projectsToAdd {
+		logger.Info("adding namespace to project destinations", "namespace", req.Name, "project", t)
 		NamespaceCache.JoinProject(req.Name, t)
 	}
 
 	var reconciliationErrors *multierror.Error
-	// add ns to new app-projects
-	logger.Info("Reconciling New Teams", "len", len(projectsToAdd))
+
+	logger.Info("reconciling (by adding) projects/teams", "len", len(projectsToAdd))
+
 	for t := range projectsToAdd {
-		logger.Info("Reconciling AppProject to add new namespaces", "AppProj.Name", t)
+		logger.Info("reconciling (by adding) project/team", "name", t)
+
 		if err := r.reconcileAppProject(ctx, logger, t); err != nil {
-			logger.Error(err, "Error while Reconciling AppProject", "AppProj.Name", t)
+			logger.Error(err, "error while reconciling project", "name", t)
 			reconciliationErrors = multierror.Append(reconciliationErrors, err)
 		}
 	}
 
-	// removing ns from old projects
-	logger.Info("Reconciling Old Teams", "len", len(projectsToAdd))
+	logger.Info("reconciling (by removing) projects/teams", "len", len(projectsToAdd))
+
 	for _, t := range projectsToRemove {
-		logger.Info("Reconciling AppProject as on old member", "AppProj.Name", t)
-		err = r.reconcileAppProject(ctx, logger, t)
-		if err != nil {
-			logger.Error(err, "Error while Reconciling AppProject", "AppProj.Name", t)
+		logger.Info("reconciling (by removing) project/team", "name", t)
+
+		if err := r.reconcileAppProject(ctx, logger, t); err != nil {
+			logger.Error(err, "error while reconciling project", "name", t)
 			reconciliationErrors = multierror.Append(reconciliationErrors, err)
 		}
 	}
@@ -316,6 +328,8 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	return ctrl.Result{}, reconciliationErrors.ErrorOrNil()
 }
 
+// reconcileAppProject create an argocd project and change the current argocd project to be compatible with it.
+// it is called everytime a label changed, so when you remove a policy or etc it will not be called.
 func (r *NamespaceReconciler) reconcileAppProject(ctx context.Context, logger logr.Logger, team string) error {
 	appProj := r.createAppProj(team)
 
@@ -323,14 +337,15 @@ func (r *NamespaceReconciler) reconcileAppProject(ctx context.Context, logger lo
 	found := &argov1alpha1.AppProject{}
 	if err := r.Get(ctx, types.NamespacedName{Name: team, Namespace: baseNs}, found); err != nil {
 		if errors.IsNotFound(err) {
-			logger.Info("Creating AppProj", "AppProj.Name", team)
+			logger.Info("creating argocd appproject", "team", appProj.Name, "sources", appProj.Spec.SourceNamespaces)
+
 			if err := r.Create(ctx, appProj); err != nil {
-				return fmt.Errorf("error creating AppProj: %v", err)
+				return fmt.Errorf("error creating AppProj: %w", err)
 			}
 
 			return nil
 		} else {
-			return fmt.Errorf("error getting AppProj: %v", err)
+			return fmt.Errorf("error getting AppProj: %w", err)
 		}
 	}
 
@@ -363,9 +378,7 @@ func (r *NamespaceReconciler) createAppProj(team string) *argov1alpha1.AppProjec
 	}
 
 	sources := NamespaceCache.GetSources(team)
-
 	sourceNamespaces := []string{}
-
 	for source := range sources {
 		sourceNamespaces = append(sourceNamespaces, source)
 	}
