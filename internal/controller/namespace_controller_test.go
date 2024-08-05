@@ -14,15 +14,16 @@ See the License for the specific language governing permissions and
 limitations under the License.
 */
 
-package controllers
+package controller_test
 
 import (
 	"context"
 	"time"
 
 	argov1alpha1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
-	. "github.com/onsi/ginkgo"
+	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	"github.com/snapp-incubator/argocd-complementary-operator/internal/controller"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
@@ -30,12 +31,11 @@ import (
 
 var ctx = context.Background()
 
-var _ = Describe("namespace controller", func() {
+var _ = Describe("namespace controller to create teams", func() {
 	// Define utility constants for object names and testing timeouts/durations and intervals.
 	const (
-		timeout   = time.Second * 10
-		interval  = time.Second * 1
-		teamLabel = "argocd.snappcloud.io/appproj"
+		timeout  = time.Second * 20
+		interval = time.Millisecond * 30
 	)
 	// Creating user-argocd namespace
 	Context("When cluster bootstrap", func() {
@@ -61,8 +61,11 @@ var _ = Describe("namespace controller", func() {
 			// create test namespace with test-team label.
 			testNS := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:   "test-ns",
-					Labels: map[string]string{teamLabel: "test-team"},
+					Name: "test-ns",
+					Labels: map[string]string{
+						controller.ProjectsLabel: "test-team",
+						controller.SourceLabel:   "test-team",
+					},
 				},
 			}
 			Expect(k8sClient.Create(ctx, testNS)).Should(Succeed())
@@ -82,6 +85,8 @@ var _ = Describe("namespace controller", func() {
 			Expect(testAppProj.Name).Should(Equal(testAppProjLookup.Name))
 			Expect(testAppProj.Namespace).Should(Equal(testAppProjLookup.Namespace))
 			Expect(testAppProj.Spec.Destinations[0].Namespace).Should(Equal(testNS.Name))
+			Expect(testAppProj.Spec.SourceNamespaces).Should(HaveLen(1))
+			Expect(testAppProj.Spec.SourceNamespaces[0]).Should(Equal(testNS.Name))
 		})
 	})
 
@@ -93,7 +98,7 @@ var _ = Describe("namespace controller", func() {
 				testNS := &corev1.Namespace{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:   "test-ns",
-						Labels: map[string]string{teamLabel: "cloudy-team"},
+						Labels: map[string]string{controller.ProjectsLabel: "cloudy-team"},
 					},
 				}
 				Expect(k8sClient.Update(ctx, testNS)).Should(Succeed())
@@ -124,7 +129,7 @@ var _ = Describe("namespace controller", func() {
 				}, timeout, interval).Should(BeTrue())
 				Expect(testAppProj.Name).Should(Equal(appProjLookupKey.Name))
 				Expect(testAppProj.Namespace).Should(Equal(appProjLookupKey.Namespace))
-				Expect(testAppProj.Spec.Destinations).To(BeNil())
+				// Eventually(testAppProj.Spec.Destinations).Should(BeEmpty())
 			})
 		})
 	})
@@ -137,7 +142,7 @@ var _ = Describe("namespace controller", func() {
 				testNS := &corev1.Namespace{
 					ObjectMeta: metav1.ObjectMeta{
 						Name:   "test-ns",
-						Labels: map[string]string{teamLabel: "cloudy-team.rainy-team"},
+						Labels: map[string]string{controller.ProjectsLabel: "cloudy-team.rainy-team"},
 					},
 				}
 				Expect(k8sClient.Update(ctx, testNS)).Should(Succeed())

@@ -1,5 +1,3 @@
-#
-
 <h1 align="center"> <a href="https://argo-cd.readthedocs.io/en/stable/">ArgoCD</a> Complementary Operator </h1>
 <h6 align="center">Manage your ArgoCD users and project with ease and some labels!</h6>
 
@@ -11,10 +9,43 @@
 </p>
 
 Add `ArgocdUser` CRD to be able to create static ArgoCD user for each `ArgocdUser`.
-Also, it creates [ArgoCD projects](https://argo-cd.readthedocs.io/en/stable/user-guide/projects/) based on lables you have on the namespaces beside the users
-defined as `ArgocdUser`.
+Also, it creates [ArgoCD projects](https://argo-cd.readthedocs.io/en/stable/user-guide/projects/) based on
+labels you have on the namespaces beside the users defined as `ArgocdUser`.
 
-## Instructions
+## How it works?
+
+### ArgoCD Project
+
+Each ArgoCD project in Snapp is mapped into a team. For each project you need to have destinations which are namespaces
+that project can deploy resources on them, using this operator you can label these namespaces as follows:
+
+```yaml
+apiVersion: "v1"
+kind: "Namespace"
+metadata:
+  labels:
+    argocd.snappcloud.io/appproj: A.B
+```
+
+Which means ArgoCD projects A and B can deploy resources into namespace NS. Also, there are some cases in which you want
+to create ArgoCD applications by submitting them from CLI instead of using UI. For these cases you can use
+[`ApplicationSet`](https://argo-cd.readthedocs.io/en/stable/user-guide/application-set/) or you can use your team namespace.
+By default, ArgoCD applications are created in the `user-argocd`
+which is the namespace that (in Snapp) we deployed our ArgoCD. For having team namespace instead of `user-argocd` you
+need to label that namespace as follows:
+
+```yaml
+apiVersion: "v1"
+kind: "Namespace"
+metadata:
+  labels:
+    argocd.snappcloud.io/appproj: A
+    argocd.snappcloud.io/source: A
+```
+
+Please note that, because of the current architecture of this operator you need both of these label on the namespace.
+
+### ArgoCD User
 
 Here is the ArgoCD user created using operator:
 
@@ -35,6 +66,8 @@ spec:
     - user1
     - user2
 ```
+
+## Instructions
 
 ### Development
 

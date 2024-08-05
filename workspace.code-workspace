@@ -1,9 +1,0 @@
-{
-	"folders": [
-		{
-			"name": "argocd-complementary-operator",
-			"path": "."
-		}
-	],
-	"settings": {}
-}
