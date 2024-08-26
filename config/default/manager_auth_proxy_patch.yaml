@@ -10,7 +10,6 @@ spec:
     spec:
       containers:
       - name: kube-rbac-proxy
-        securityContext: {}
         image: gcr.io/kubebuilder/kube-rbac-proxy:v0.16.0
         args:
         - "--secure-listen-address=0.0.0.0:8443"
