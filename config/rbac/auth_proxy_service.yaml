@@ -5,7 +5,7 @@ metadata:
     control-plane: controller-manager
     app.kubernetes.io/name: argocd-complementary-operator
     app.kubernetes.io/managed-by: kustomize
-  name: controller-manager-metrics-service
+  name: controller-manager-metrics-svc
   namespace: system
 spec:
   ports:
