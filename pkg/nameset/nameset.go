@@ -14,6 +14,12 @@ func (nm Nameset[T]) Remove(i T) {
 	delete(nm.data, i)
 }
 
+func (nm Nameset[T]) Contains(i T) bool {
+	_, ok := nm.data[i]
+
+	return ok
+}
+
 func (nm Nameset[T]) Filter(filter func(T) bool) iter.Seq[T] {
 	return func(yield func(i T) bool) {
 		for i := range nm.data {
