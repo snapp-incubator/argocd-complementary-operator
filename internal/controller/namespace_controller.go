@@ -27,6 +27,7 @@ import (
 	argov1alpha1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
 	"github.com/go-logr/logr"
 	"github.com/hashicorp/go-multierror"
+	"github.com/snapp-incubator/argocd-complementary-operator/pkg/nameset"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -57,37 +58,32 @@ const (
 	baseNs = "user-argocd"
 )
 
-var NamespaceCache = &SafeNsCache{
-	lock:        sync.Mutex{},
-	projects:    nil,
-	namespaces:  nil,
-	initialized: false,
+type SafeNsCache struct {
+	lock        sync.Mutex
+	projects    map[string]nameset.Nameset[string]
+	namespaces  map[string]nameset.Nameset[string]
+	sources     map[string]nameset.Nameset[string]
+	initialized bool
 }
-
-type Nameset map[string]struct{}
-
-type (
-	SafeNsCache struct {
-		lock        sync.Mutex
-		projects    map[string]Nameset
-		namespaces  map[string]Nameset
-		sources     map[string]Nameset
-		initialized bool
-	}
-)
 
 // Trust given source in the given project.
 func (c *SafeNsCache) TrustSource(ns, proj string) {
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
 	if _, ok := c.sources[ns]; !ok {
-		c.sources[ns] = make(Nameset)
+		c.sources[ns] = nameset.New[string]()
 	}
 
-	c.sources[ns][proj] = struct{}{}
+	c.sources[ns].Add(proj)
 }
 
 // UnTrust given source in the given project.
 func (c *SafeNsCache) UnTrustSource(ns, proj string) {
-	delete(c.sources[ns], proj)
+	c.lock.Lock()
+	defer c.lock.Unlock()
+
+	c.sources[ns].Remove(proj)
 }
 
 // JoinProject will add given namespace into given project.
@@ -97,15 +93,15 @@ func (c *SafeNsCache) JoinProject(ns, proj string) {
 	defer c.lock.Unlock()
 
 	if _, ok := c.projects[ns]; !ok {
-		c.projects[ns] = make(Nameset)
+		c.projects[ns] = nameset.New[string]()
 	}
 
 	if _, ok := c.namespaces[proj]; !ok {
-		c.namespaces[proj] = make(Nameset)
+		c.namespaces[proj] = nameset.New[string]()
 	}
 
-	c.projects[ns][proj] = struct{}{}
-	c.namespaces[proj][ns] = struct{}{}
+	c.projects[ns].Add(proj)
+	c.namespaces[proj].Add(ns)
 }
 
 // LeaveProject will remove given namespace from given project.
@@ -114,51 +110,51 @@ func (c *SafeNsCache) LeaveProject(ns, proj string) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	delete(c.projects[ns], proj)
-	delete(c.namespaces[proj], ns)
+	c.projects[ns].Remove(proj)
+	c.namespaces[proj].Remove(ns)
 }
 
-// GetProjects will return name-set for given Namespace name. It creates a copy
+// GetProjects will return projects for given Namespace name. It creates a copy
 // from current name-set.
-func (c *SafeNsCache) GetProjects(ns string) Nameset {
+func (c *SafeNsCache) GetProjects(ns string) []string {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	r := make(Nameset)
+	r := make([]string, 0)
 
-	for k := range c.projects[ns] {
-		r[k] = struct{}{}
+	for k := range c.projects[ns].All() {
+		r = append(r, k)
 	}
 
 	return r
 }
 
-// GetNamespaces will return name-set for given AppProject name. It creates a copy
+// GetNamespaces will return namespaces for given AppProject name. It creates a copy
 // from current name-set.
-func (c *SafeNsCache) GetNamespaces(proj string) Nameset {
+func (c *SafeNsCache) GetNamespaces(proj string) []string {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	r := make(Nameset)
+	r := make([]string, 0)
 
-	for k := range c.namespaces[proj] {
-		r[k] = struct{}{}
+	for k := range c.namespaces[proj].All() {
+		r = append(r, k)
 	}
 
 	return r
 }
 
-// GetSources will return name-set for given AppProject name. It creates a copy
+// GetSources will return sources for given AppProject name. It creates a copy
 // from current name-set.
-func (c *SafeNsCache) GetSources(proj string) Nameset {
+func (c *SafeNsCache) GetSources(proj string) []string {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	r := make(Nameset)
+	r := make([]string, 0)
 
 	for k, v := range c.sources {
-		if _, ok := v[proj]; ok {
-			r[k] = struct{}{}
+		if v.Contains(proj) {
+			r = append(r, k)
 		}
 	}
 
@@ -176,9 +172,9 @@ func (c *SafeNsCache) InitOrPass(r *NamespaceReconciler, ctx context.Context) er
 
 	appProjList := &argov1alpha1.AppProjectList{}
 
-	c.namespaces = make(map[string]Nameset)
-	c.projects = make(map[string]Nameset)
-	c.sources = make(map[string]Nameset)
+	c.namespaces = make(map[string]nameset.Nameset[string])
+	c.projects = make(map[string]nameset.Nameset[string])
+	c.sources = make(map[string]nameset.Nameset[string])
 
 	if err := r.List(ctx, appProjList,
 		&client.ListOptions{Namespace: baseNs},
@@ -196,6 +192,13 @@ func (c *SafeNsCache) InitOrPass(r *NamespaceReconciler, ctx context.Context) er
 	}
 
 	return nil
+}
+
+var NamespaceCache = &SafeNsCache{
+	lock:        sync.Mutex{},
+	projects:    nil,
+	namespaces:  nil,
+	initialized: false,
 }
 
 //+kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch;create;update;patch;delete
