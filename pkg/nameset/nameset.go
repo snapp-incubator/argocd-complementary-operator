@@ -14,6 +14,10 @@ func (nm Nameset[T]) Remove(i T) {
 	delete(nm.data, i)
 }
 
+func (nm Nameset[T]) Len() int {
+	return len(nm.data)
+}
+
 func (nm Nameset[T]) Contains(i T) bool {
 	_, ok := nm.data[i]
 

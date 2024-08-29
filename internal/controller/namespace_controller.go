@@ -235,7 +235,7 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 			oldTeams := NamespaceCache.GetProjects(req.Name)
 			if len(oldTeams) > 0 {
-				for t := range oldTeams {
+				for _, t := range oldTeams {
 					if err := r.reconcileAppProject(ctx, logger, t); err != nil {
 						logger.Error(err, "failed to reconcile appproject for not found resource error recovery", "name", t)
 
@@ -264,18 +264,18 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 
 	currentSources := NamespaceCache.GetSources(req.Name)
 
-	for s := range currentSources {
-		if _, ok := sourcesToAdd[s]; !ok {
+	for _, s := range currentSources {
+		if !sourcesToAdd.Contains(s) {
 			logger.Info("namespace cannot contain applications belongs to project", "namespace", req.Name, "project", s)
 			NamespaceCache.UnTrustSource(req.Name, s)
 		} else {
-			delete(sourcesToAdd, s)
+			sourcesToAdd.Remove(s)
 			logger.Info("namespace can contain applications belongs to project", "namespace", req.Name, "project", s)
 			NamespaceCache.TrustSource(req.Name, s)
 		}
 	}
 
-	for s := range sourcesToAdd {
+	for s := range sourcesToAdd.All() {
 		logger.Info("namespace can contain applications belongs to project", "namespace", req.Name, "source", s)
 		NamespaceCache.TrustSource(req.Name, s)
 	}
@@ -287,28 +287,28 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	projectsToRemove := make([]string, 0)
 	currentProjects := NamespaceCache.GetProjects(req.Name)
 
-	for t := range currentProjects {
-		if _, ok := projectsToAdd[t]; !ok {
+	for _, t := range currentProjects {
+		if !projectsToAdd.Contains(t) {
 			projectsToRemove = append(projectsToRemove, t)
 			logger.Info("removing namespace from project destinations", "namespace", req.Name, "project", t)
 			NamespaceCache.LeaveProject(req.Name, t)
 		} else {
-			delete(projectsToAdd, t)
+			projectsToAdd.Remove(t)
 			logger.Info("adding namespace to project destinations", "namespace", req.Name, "project", t)
 			NamespaceCache.JoinProject(req.Name, t)
 		}
 	}
 
-	for t := range projectsToAdd {
+	for t := range projectsToAdd.All() {
 		logger.Info("adding namespace to project destinations", "namespace", req.Name, "project", t)
 		NamespaceCache.JoinProject(req.Name, t)
 	}
 
 	var reconciliationErrors *multierror.Error
 
-	logger.Info("reconciling (by adding) projects/teams", "len", len(projectsToAdd))
+	logger.Info("reconciling (by adding) projects/teams", "len", projectsToAdd.Len())
 
-	for t := range projectsToAdd {
+	for t := range projectsToAdd.All() {
 		logger.Info("reconciling (by adding) project/team", "name", t)
 
 		if err := r.reconcileAppProject(ctx, logger, t); err != nil {
@@ -317,7 +317,7 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 		}
 	}
 
-	logger.Info("reconciling (by removing) projects/teams", "len", len(projectsToAdd))
+	logger.Info("reconciling (by removing) projects/teams", "len", len(projectsToRemove))
 
 	for _, t := range projectsToRemove {
 		logger.Info("reconciling (by removing) project/team", "name", t)
@@ -373,7 +373,7 @@ func (r *NamespaceReconciler) createAppProj(team string) *argov1alpha1.AppProjec
 
 	destinations := []argov1alpha1.ApplicationDestination{}
 
-	for desiredNamespace := range desiredNamespaces {
+	for _, desiredNamespace := range desiredNamespaces {
 		destinations = append(destinations, argov1alpha1.ApplicationDestination{
 			Namespace: desiredNamespace,
 			Server:    "https://kubernetes.default.svc",
@@ -381,10 +381,6 @@ func (r *NamespaceReconciler) createAppProj(team string) *argov1alpha1.AppProjec
 	}
 
 	sources := NamespaceCache.GetSources(team)
-	sourceNamespaces := []string{}
-	for source := range sources {
-		sourceNamespaces = append(sourceNamespaces, source)
-	}
 
 	// Get public repos
 	repo_env := os.Getenv("PUBLIC_REPOS")
@@ -409,7 +405,7 @@ func (r *NamespaceReconciler) createAppProj(team string) *argov1alpha1.AppProjec
 		Spec: argov1alpha1.AppProjectSpec{
 			SourceRepos:      repo_list,
 			Destinations:     destinations,
-			SourceNamespaces: sourceNamespaces,
+			SourceNamespaces: sources,
 			NamespaceResourceBlacklist: []metav1.GroupKind{
 				{
 					Group: "",
