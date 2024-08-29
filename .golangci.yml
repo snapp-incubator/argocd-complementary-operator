@@ -38,3 +38,4 @@ linters:
     - unconvert
     - unparam
     - unused
+    - exportloopref
