@@ -468,8 +468,8 @@ func appendRepos(repo_list []string, found_repos []string) []string {
 }
 
 // labelToProjects will convert period separated label value to actual nameset.
-func labelToProjects(l string) Nameset {
-	result := make(Nameset)
+func labelToProjects(l string) nameset.Nameset[string] {
+	result := nameset.New[string]()
 
 	if l == "" {
 		return result
@@ -477,7 +477,7 @@ func labelToProjects(l string) Nameset {
 
 	for _, s := range strings.Split(l, ".") {
 		if s != "" {
-			result[s] = struct{}{}
+			result.Add(s)
 		}
 	}
 
