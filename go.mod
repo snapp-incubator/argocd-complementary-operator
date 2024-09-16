@@ -10,7 +10,7 @@ require (
 	github.com/onsi/gomega v1.34.2
 	github.com/openshift/api v0.0.0-20240823112050-2b42490270d8
 	golang.org/x/crypto v0.27.0
-	k8s.io/api v0.31.0
+	k8s.io/api v0.31.1
 	k8s.io/apimachinery v0.31.1
 	k8s.io/client-go v0.31.0
 	sigs.k8s.io/controller-runtime v0.19.0
