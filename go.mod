@@ -3,7 +3,7 @@ module github.com/snapp-incubator/argocd-complementary-operator
 go 1.23
 
 require (
-	github.com/argoproj/argo-cd/v2 v2.12.6
+	github.com/argoproj/argo-cd/v2 v2.13.0
 	github.com/go-logr/logr v1.4.2
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/onsi/ginkgo/v2 v2.20.2
@@ -24,7 +24,7 @@ require (
 	github.com/Masterminds/semver/v3 v3.3.0 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/ProtonMail/go-crypto v1.0.0 // indirect
-	github.com/argoproj/gitops-engine v0.7.1-0.20240718175351-6b2984ebc470 // indirect
+	github.com/argoproj/gitops-engine v0.7.1-0.20240905010810-bd7681ae3f8b // indirect
 	github.com/argoproj/pkg v0.13.7-0.20230626144333-d56162821bd1 // indirect
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/blang/semver/v4 v4.0.0 // indirect
@@ -117,7 +117,6 @@ require (
 	github.com/x448/float16 v0.8.4 // indirect
 	github.com/xanzy/ssh-agent v0.3.3 // indirect
 	github.com/xlab/treeprint v1.2.0 // indirect
-	go.starlark.net v0.0.0-20240925182052-1207426daebd // indirect
 	go.uber.org/multierr v1.11.0 // indirect
 	go.uber.org/zap v1.27.0 // indirect
 	golang.org/x/exp v0.0.0-20241009180824-f66d83c29e7c // indirect
