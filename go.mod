@@ -3,7 +3,7 @@ module github.com/snapp-incubator/argocd-complementary-operator
 go 1.23
 
 require (
-	github.com/argoproj/argo-cd/v2 v2.13.0
+	github.com/argoproj/argo-cd/v2 v2.13.1
 	github.com/go-logr/logr v1.4.2
 	github.com/hashicorp/go-multierror v1.1.1
 	github.com/onsi/ginkgo/v2 v2.22.0
