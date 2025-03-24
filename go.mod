@@ -1,6 +1,8 @@
 module github.com/snapp-incubator/argocd-complementary-operator
 
 go 1.23
+toolchain go1.24.1
+
 require (
 	github.com/argoproj/argo-cd/v2 v2.13.3
 	github.com/go-logr/logr v1.4.2
@@ -10,7 +12,7 @@ require (
 	github.com/openshift/api v0.0.0-20241024191314-684b2b1679ba
 	golang.org/x/crypto v0.32.0
 	k8s.io/api v0.32.1
-	k8s.io/apimachinery v0.32.1
+	k8s.io/apimachinery v0.32.3
 	k8s.io/client-go v0.32.1
 	sigs.k8s.io/controller-runtime v0.20.1
 )
