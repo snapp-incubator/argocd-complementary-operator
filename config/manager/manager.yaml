@@ -53,7 +53,7 @@ spec:
         - /manager
         args:
         - --leader-elect
-        image: 'ghcr.io/snapp-incubator/argocd-complementary-operator:0.4.0'
+        image: 'ghcr.io/snapp-incubator/argocd-complementary-operator:0.4.1'
         name: manager
         envFrom:
         - configMapRef:
