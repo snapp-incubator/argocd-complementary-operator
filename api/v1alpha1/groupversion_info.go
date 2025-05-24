@@ -15,8 +15,8 @@ limitations under the License.
 */
 
 // Package v1alpha1 contains API Schema definitions for the argocd v1alpha1 API group
-//+kubebuilder:object:generate=true
-//+groupName=argocd.snappcloud.io
+// +kubebuilder:object:generate=true
+// +groupName=argocd.snappcloud.io
 package v1alpha1
 
 import (

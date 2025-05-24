@@ -34,14 +34,14 @@ type ArgocdCIAdmin struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 	CIPass string `json:"ciPass,omitempty"`
-	//ArgocdToken string `json:"argocdToken,omitempty"`
+	// ArgocdToken string `json:"argocdToken,omitempty"`
 	Users []string `json:"users,omitempty"`
 }
 type ArgocdCIView struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 	CIPass string `json:"ciPass,omitempty"`
-	//ArgocdToken string `json:"argocdToken,omitempty"`
+	// ArgocdToken string `json:"argocdToken,omitempty"`
 	Users []string `json:"users,omitempty"`
 }
 
