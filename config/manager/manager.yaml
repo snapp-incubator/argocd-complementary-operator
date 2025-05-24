@@ -49,35 +49,38 @@ spec:
       #             values:
       #               - linux
       containers:
-      - command:
-        - /manager
-        args:
-        - --leader-elect
-        image: 'ghcr.io/snapp-incubator/argocd-complementary-operator:0.4.1'
-        name: manager
-        envFrom:
-        - configMapRef:
-            name: public-repos
-        livenessProbe:
-          httpGet:
-            path: /healthz
-            port: 8081
-          initialDelaySeconds: 15
-          periodSeconds: 20
-        readinessProbe:
-          httpGet:
-            path: /readyz
-            port: 8081
-          initialDelaySeconds: 5
-          periodSeconds: 10
-        # TODO(user): Configure the resources accordingly based on the project requirements.
-        # More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
-        resources:
-          limits:
-            cpu: 500m
-            memory: 512Mi
-          requests:
-            cpu: 100m
-            memory: 128Mi
+        - command:
+            - /manager
+          args:
+            - --leader-elect
+          image: "ghcr.io/snapp-incubator/argocd-complementary-operator:0.4.1"
+          name: manager
+          env:
+            - name: GODEBUG
+              value: multipathtcp=0
+          envFrom:
+            - configMapRef:
+                name: public-repos
+          livenessProbe:
+            httpGet:
+              path: /healthz
+              port: 8081
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          readinessProbe:
+            httpGet:
+              path: /readyz
+              port: 8081
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          # TODO(user): Configure the resources accordingly based on the project requirements.
+          # More info: https://kubernetes.io/docs/concepts/configuration/manage-resources-containers/
+          resources:
+            limits:
+              cpu: 500m
+              memory: 512Mi
+            requests:
+              cpu: 100m
+              memory: 128Mi
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10
