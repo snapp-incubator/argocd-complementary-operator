@@ -376,7 +376,7 @@ func (r *NamespaceReconciler) createAppProj(team string) *argov1alpha1.AppProjec
 	for _, desiredNamespace := range desiredNamespaces {
 		destinations = append(destinations, argov1alpha1.ApplicationDestination{
 			Namespace: desiredNamespace,
-			Server:    "https://kubernetes.default.svc",
+			Server:    "*",
 		})
 	}
 
