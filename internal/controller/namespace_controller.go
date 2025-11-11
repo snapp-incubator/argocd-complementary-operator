@@ -418,13 +418,20 @@ func (r *NamespaceReconciler) createAppProj(team string) *argov1alpha1.AppProjec
 					Name:   team + "-admin",
 					Policies: []string{
 						"p, proj:" + team + ":" + team + "-admin, applications, *, " + team + "/*, allow",
+						"p, proj:" + team + ":" + team + "-admin, repositories, *, " + team + "/*, allow",
+						"p, proj:" + team + ":" + team + "-admin, exec, create, " + team + "/*, allow",
+						// TODO: The log get action shouldbe available as we add team-view to the admin in `AddArgocdRBACPolicy` function.
+						// But it doesn't work!
+						"p, proj:" + team + ":" + team + "-admin, logs, get, " + team + "/*, allow",
 					},
 				},
 				{
 					Groups: []string{team + "-view", team + "-view" + "-ci"},
 					Name:   team + "-view",
 					Policies: []string{
-						"p, proj:" + team + ":" + team + "-view, applications, *, " + team + "/get, allow",
+						"p, proj:" + team + ":" + team + "-view, applications, get, " + team + "/*, allow",
+						"p, proj:" + team + ":" + team + "-view, repositories, get, " + team + "/*, allow",
+						"p, proj:" + team + ":" + team + "-view, logs, get, " + team + "/*, allow",
 					},
 				},
 			},
