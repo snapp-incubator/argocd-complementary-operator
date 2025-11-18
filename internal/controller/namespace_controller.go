@@ -420,11 +420,10 @@ func (r *NamespaceReconciler) createAppProj(team string) *argov1alpha1.AppProjec
 						"p, proj:" + team + ":" + team + "-admin, applications, *, " + team + "/*, allow",
 						"p, proj:" + team + ":" + team + "-admin, repositories, *, " + team + "/*, allow",
 						"p, proj:" + team + ":" + team + "-admin, exec, create, " + team + "/*, allow",
-						"p, proj:" + team + ":" + team + "-admin, logs, get, " + team + "/*, allow",
 					},
 				},
 				{
-					Groups: []string{team + "-view", team + "-view" + "-ci"},
+					Groups: []string{team + "-admin", team + "-admin" + "-ci", team + "-view", team + "-view" + "-ci"},
 					Name:   team + "-view",
 					Policies: []string{
 						"p, proj:" + team + ":" + team + "-view, applications, get, " + team + "/*, allow",
