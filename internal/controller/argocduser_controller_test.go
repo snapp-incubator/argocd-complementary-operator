@@ -37,6 +37,21 @@ var _ = Describe("ArgocdUser controller RBAC policy generation", Ordered, func()
 
 	ctx := context.Background()
 
+	BeforeAll(func() {
+		By("Ensuring user-argocd namespace exists")
+		userArgocdNS := &corev1.Namespace{
+			ObjectMeta: metav1.ObjectMeta{
+				Name: "user-argocd",
+			},
+		}
+		err := k8sClient.Create(ctx, userArgocdNS)
+		if err != nil {
+			// Namespace might already exist
+			err = k8sClient.Get(ctx, types.NamespacedName{Name: "user-argocd"}, userArgocdNS)
+			Expect(err).NotTo(HaveOccurred())
+		}
+	})
+
 	Context("When creating an ArgocdUser resource", func() {
 		It("Should generate correct RBAC policies in ConfigMap", func() {
 			By("Creating the argocd-rbac-cm ConfigMap if it doesn't exist")
@@ -131,54 +146,30 @@ var _ = Describe("ArgocdUser controller RBAC policy generation", Ordered, func()
 				return strings.Contains(updatedConfigMap.Data["policy.csv"], "test-team-admin-ci")
 			}, timeout, interval).Should(BeTrue())
 
-			By("Verifying group assignment policies (g,) are present")
+			By("Verifying global common role definition is present")
 			policyCsv := updatedConfigMap.Data["policy.csv"]
 
-			// Group assignments for admin-ci
-			Expect(policyCsv).To(ContainSubstring("g, test-team-admin-ci, role:test-team-admin"),
-				"Should assign admin-ci to admin role")
-			Expect(policyCsv).To(ContainSubstring("g, test-team-admin-ci, role:test-team-view"),
-				"Should assign admin-ci to view role")
+			// Common role definition - allows all users to get clusters
+			Expect(policyCsv).To(ContainSubstring("p, role:common, clusters, get, *, allow"),
+				"Should define common role with clusters get permission")
+
+			By("Verifying group bindings to common role are present")
+			// All groups should be bound to common role
 			Expect(policyCsv).To(ContainSubstring("g, test-team-admin-ci, role:common"),
 				"Should assign admin-ci to common role")
-
-			// Group assignments for view-ci
 			Expect(policyCsv).To(ContainSubstring("g, test-team-view-ci, role:common"),
 				"Should assign view-ci to common role")
-			Expect(policyCsv).To(ContainSubstring("g, test-team-view-ci, role:test-team-view"),
-				"Should assign view-ci to view role")
-
-			// Group assignments for admin
-			Expect(policyCsv).To(ContainSubstring("g, test-team-admin, role:test-team-admin"),
-				"Should assign admin to admin role")
-			Expect(policyCsv).To(ContainSubstring("g, test-team-admin, role:test-team-view"),
-				"Should assign admin to view role")
 			Expect(policyCsv).To(ContainSubstring("g, test-team-admin, role:common"),
 				"Should assign admin to common role")
-
-			// Group assignments for view
 			Expect(policyCsv).To(ContainSubstring("g, test-team-view, role:common"),
 				"Should assign view to common role")
-			Expect(policyCsv).To(ContainSubstring("g, test-team-view, role:test-team-view"),
-				"Should assign view to view role")
 
-			By("Verifying permission policies (p,) for repositories are present")
-			// Admin repository permissions
-			Expect(policyCsv).To(ContainSubstring("p, role:test-team-admin, repositories, create, test-team/*, allow"),
-				"Admin should have create permission on repositories")
-			Expect(policyCsv).To(ContainSubstring("p, role:test-team-admin, repositories, delete, test-team/*, allow"),
-				"Admin should have delete permission on repositories")
-			Expect(policyCsv).To(ContainSubstring("p, role:test-team-admin, repositories, update, test-team/*, allow"),
-				"Admin should have update permission on repositories")
-
-			// View repository permissions
-			Expect(policyCsv).To(ContainSubstring("p, role:test-team-view, repositories, get, test-team/*, allow"),
-				"View should have get permission on repositories")
-
-			By("Verifying permission policies (p,) for applications are present")
-			// View application permissions
-			Expect(policyCsv).To(ContainSubstring("p, role:test-team-view, applications, get, test-team/*, allow"),
-				"View should have get permission on applications")
+			By("Verifying fine-grained policies are NOT in policy.csv (they belong in AppProject)")
+			// Fine-grained policies should NOT be in global config
+			Expect(policyCsv).NotTo(ContainSubstring("role:test-team-admin, repositories"),
+				"Repository policies should be in AppProject, not global config")
+			Expect(policyCsv).NotTo(ContainSubstring("role:test-team-view, applications"),
+				"Application policies should be in AppProject, not global config")
 		})
 
 		It("Should create static users in argocd-cm ConfigMap", func() {
@@ -231,9 +222,14 @@ var _ = Describe("ArgocdUser controller RBAC policy generation", Ordered, func()
 			policyCsv := configMap.Data["policy.csv"]
 
 			// Count occurrences of a specific policy to ensure no duplicates
-			testPolicy := "g, test-team-admin-ci, role:test-team-admin"
+			testPolicy := "g, test-team-admin-ci, role:common"
 			occurrences := strings.Count(policyCsv, testPolicy)
 			Expect(occurrences).To(Equal(1), "Policy should appear exactly once, not be duplicated")
+
+			// Also verify the common role definition appears only once
+			commonRolePolicy := "p, role:common, clusters, get, *, allow"
+			commonRoleOccurrences := strings.Count(policyCsv, commonRolePolicy)
+			Expect(commonRoleOccurrences).To(Equal(1), "Common role definition should appear exactly once")
 		})
 	})
 })

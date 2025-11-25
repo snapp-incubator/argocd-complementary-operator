@@ -46,8 +46,14 @@ var _ = Describe("namespace controller to create teams", func() {
 						Name: "user-argocd",
 					},
 				}
-				Expect(k8sClient.Create(ctx, ArgoNs)).Should(Succeed())
+				err := k8sClient.Create(ctx, ArgoNs)
+				if err != nil {
+					// Namespace might already exist from ArgocdUser tests
+					lookupns := types.NamespacedName{Name: "user-argocd"}
+					Expect(k8sClient.Get(ctx, lookupns, ArgoNs)).Should(Succeed())
+				}
 
+				// Verify namespace exists
 				lookupns := types.NamespacedName{Name: "user-argocd"}
 				Expect(k8sClient.Get(ctx, lookupns, ArgoNs)).Should(Succeed())
 			})
@@ -204,55 +210,55 @@ var _ = Describe("namespace controller to create teams", func() {
 				return err == nil
 			}, timeout, interval).Should(BeTrue())
 
-			By("Verifying admin role includes logs permission")
+			By("Verifying admin role has full permissions (logs inherited from view role)")
 			adminRoleFound := false
 			for _, role := range rbacAppProj.Spec.Roles {
 				if role.Name == "rbac-team-admin" {
 					adminRoleFound = true
 
-					// Verify all expected admin permissions
+					// Verify admin-specific permissions
 					Expect(role.Policies).To(ContainElement(ContainSubstring("applications, *, rbac-team/*, allow")),
 						"Admin should have applications permissions")
 					Expect(role.Policies).To(ContainElement(ContainSubstring("repositories, *, rbac-team/*, allow")),
 						"Admin should have repositories permissions")
 					Expect(role.Policies).To(ContainElement(ContainSubstring("exec, create, rbac-team/*, allow")),
 						"Admin should have exec permissions")
-					Expect(role.Policies).To(ContainElement(ContainSubstring("logs, get, rbac-team/*, allow")),
-						"Admin should have logs get permission")
+
+					// Note: logs permission is in view role, which admin inherits
 				}
 			}
 			Expect(adminRoleFound).To(BeTrue(), "Admin role should exist in AppProject")
 		})
 
-		It("Should assign only view groups to view role (not admin groups)", func() {
+		It("Should include admin groups in view role for role aggregation", func() {
 			By("Getting the AppProject created in previous test")
 			rbacAppProj := &argov1alpha1.AppProject{}
 			rbacAppProjLookup := types.NamespacedName{Name: "rbac-team", Namespace: "user-argocd"}
 			Expect(k8sClient.Get(ctx, rbacAppProjLookup, rbacAppProj)).Should(Succeed())
 
-			By("Verifying view role group assignments")
+			By("Verifying view role group assignments include both admin and view groups")
 			viewRoleFound := false
 			for _, role := range rbacAppProj.Spec.Roles {
 				if role.Name == "rbac-team-view" {
 					viewRoleFound = true
 
-					// View role should contain view and view-ci groups
+					// View role should contain ALL groups (admin + view) for role aggregation
 					Expect(role.Groups).To(ContainElement("rbac-team-view"),
 						"View role should include view group")
 					Expect(role.Groups).To(ContainElement("rbac-team-view-ci"),
 						"View role should include view-ci group")
-
-					// View role should NOT contain admin or admin-ci groups (regression test)
-					Expect(role.Groups).NotTo(ContainElement("rbac-team-admin"),
-						"View role should NOT include admin group")
-					Expect(role.Groups).NotTo(ContainElement("rbac-team-admin-ci"),
-						"View role should NOT include admin-ci group")
+					Expect(role.Groups).To(ContainElement("rbac-team-admin"),
+						"View role should include admin group for role aggregation")
+					Expect(role.Groups).To(ContainElement("rbac-team-admin-ci"),
+						"View role should include admin-ci group for role aggregation")
 
 					// Verify view role has correct permissions
 					Expect(role.Policies).To(ContainElement(ContainSubstring("applications, get, rbac-team/*, allow")),
 						"View should have applications get permission")
 					Expect(role.Policies).To(ContainElement(ContainSubstring("repositories, get, rbac-team/*, allow")),
 						"View should have repositories get permission")
+					Expect(role.Policies).To(ContainElement(ContainSubstring("logs, get, rbac-team/*, allow")),
+						"View should have logs get permission")
 				}
 			}
 			Expect(viewRoleFound).To(BeTrue(), "View role should exist in AppProject")
@@ -284,12 +290,11 @@ var _ = Describe("namespace controller to create teams", func() {
 				if role.Name == "complete-team-admin" {
 					adminRoleFound = true
 
-					// Count the number of policies to ensure all are present
+					// Admin role should have these specific permissions
 					expectedPolicySubstrings := []string{
 						"applications, *, complete-team/*, allow",
 						"repositories, *, complete-team/*, allow",
 						"exec, create, complete-team/*, allow",
-						"logs, get, complete-team/*, allow",
 					}
 
 					for _, expectedSubstring := range expectedPolicySubstrings {
@@ -297,7 +302,7 @@ var _ = Describe("namespace controller to create teams", func() {
 							"Admin role should have policy containing: %s", expectedSubstring)
 					}
 
-					// Verify group assignments
+					// Verify group assignments (only admin groups in admin role)
 					Expect(role.Groups).To(HaveLen(2),
 						"Admin role should have exactly 2 groups (admin and admin-ci)")
 					Expect(role.Groups).To(ContainElement("complete-team-admin"))

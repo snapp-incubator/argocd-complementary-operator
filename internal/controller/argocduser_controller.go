@@ -194,21 +194,11 @@ func (r *ArgocdUserReconciler) AddArgocdRBACPolicy(ctx context.Context, argocdus
 
 	// TODO: Enhance this, for example adding view roles to the admin not works!
 	policies := []string{
-		"g, " + argocduser.Name + "-admin-ci, role:" + argocduser.Name + "-admin",
-		"g, " + argocduser.Name + "-admin-ci, role:" + argocduser.Name + "-view",
+		"p, role:common, clusters, get, *, allow",
 		"g, " + argocduser.Name + "-admin-ci, role:common",
 		"g, " + argocduser.Name + "-view-ci, role:common",
-		"g, " + argocduser.Name + "-view-ci, role:" + argocduser.Name + "-view",
-		"g, " + argocduser.Name + "-admin, role:" + argocduser.Name + "-admin",
-		"g, " + argocduser.Name + "-admin, role:" + argocduser.Name + "-view",
 		"g, " + argocduser.Name + "-admin, role:common",
 		"g, " + argocduser.Name + "-view, role:common",
-		"g, " + argocduser.Name + "-view, role:" + argocduser.Name + "-view",
-		"p, role:" + argocduser.Name + "-admin, repositories, create, " + argocduser.Name + "/*, allow",
-		"p, role:" + argocduser.Name + "-admin, repositories, delete, " + argocduser.Name + "/*, allow",
-		"p, role:" + argocduser.Name + "-admin, repositories, update, " + argocduser.Name + "/*, allow",
-		"p, role:" + argocduser.Name + "-view, repositories, get, " + argocduser.Name + "/*, allow",
-		"p, role:" + argocduser.Name + "-view, applications, get, " + argocduser.Name + "/*, allow",
 	}
 
 	// add argocd rbac policy
