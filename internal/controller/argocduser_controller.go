@@ -120,6 +120,9 @@ func (r *ArgocdUserReconciler) UpdateUserArgocdConfig(ctx context.Context, argoc
 		return err
 	}
 	patch := client.MergeFrom(configMap.DeepCopy())
+	if configMap.Data == nil {
+		configMap.Data = make(map[string]string)
+	}
 	configMap.Data["accounts."+argocduser.Name+"-"+roleName+"-ci"] = "apiKey,login"
 	err = r.Patch(ctx, configMap, patch)
 	if err != nil {
@@ -191,10 +194,21 @@ func (r *ArgocdUserReconciler) AddArgocdRBACPolicy(ctx context.Context, argocdus
 
 	// TODO: Enhance this, for example adding view roles to the admin not works!
 	policies := []string{
+		"g, " + argocduser.Name + "-admin-ci, role:" + argocduser.Name + "-admin",
+		"g, " + argocduser.Name + "-admin-ci, role:" + argocduser.Name + "-view",
 		"g, " + argocduser.Name + "-admin-ci, role:common",
 		"g, " + argocduser.Name + "-view-ci, role:common",
+		"g, " + argocduser.Name + "-view-ci, role:" + argocduser.Name + "-view",
+		"g, " + argocduser.Name + "-admin, role:" + argocduser.Name + "-admin",
+		"g, " + argocduser.Name + "-admin, role:" + argocduser.Name + "-view",
 		"g, " + argocduser.Name + "-admin, role:common",
 		"g, " + argocduser.Name + "-view, role:common",
+		"g, " + argocduser.Name + "-view, role:" + argocduser.Name + "-view",
+		"p, role:" + argocduser.Name + "-admin, repositories, create, " + argocduser.Name + "/*, allow",
+		"p, role:" + argocduser.Name + "-admin, repositories, delete, " + argocduser.Name + "/*, allow",
+		"p, role:" + argocduser.Name + "-admin, repositories, update, " + argocduser.Name + "/*, allow",
+		"p, role:" + argocduser.Name + "-view, repositories, get, " + argocduser.Name + "/*, allow",
+		"p, role:" + argocduser.Name + "-view, applications, get, " + argocduser.Name + "/*, allow",
 	}
 
 	// add argocd rbac policy

@@ -29,7 +29,7 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-var _ = Describe("ArgocdUser controller RBAC policy generation", func() {
+var _ = Describe("ArgocdUser controller RBAC policy generation", Ordered, func() {
 	const (
 		timeout  = time.Second * 20
 		interval = time.Millisecond * 30
