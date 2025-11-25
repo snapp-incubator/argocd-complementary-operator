@@ -21,8 +21,10 @@ import (
 	"strings"
 	"time"
 
+	argov1alpha1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	userv1 "github.com/openshift/api/user/v1"
 	argocduserv1alpha1 "github.com/snapp-incubator/argocd-complementary-operator/api/v1alpha1"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -232,4 +234,169 @@ var _ = Describe("ArgocdUser controller RBAC policy generation", Ordered, func()
 			Expect(commonRoleOccurrences).To(Equal(1), "Common role definition should appear exactly once")
 		})
 	})
+
+	Context("When creating an ArgocdUser with AppProject management", func() {
+		It("Should create AppProject with correct RBAC roles", func() {
+			By("Creating a new ArgocdUser")
+			newUser := &argocduserv1alpha1.ArgocdUser{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: "project-team",
+				},
+				Spec: argocduserv1alpha1.ArgocdUserSpec{
+					Admin: argocduserv1alpha1.ArgocdCIAdmin{
+						CIPass: "admin-pass",
+						Users:  []string{"admin1"},
+					},
+					View: argocduserv1alpha1.ArgocdCIView{
+						CIPass: "view-pass",
+						Users:  []string{"viewer1"},
+					},
+				},
+			}
+			Expect(k8sClient.Create(ctx, newUser)).Should(Succeed())
+
+			By("Waiting for AppProject to be created")
+			appProj := &argov1alpha1.AppProject{}
+			appProjLookup := types.NamespacedName{Name: "project-team", Namespace: "user-argocd"}
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, appProjLookup, appProj)
+				return err == nil
+			}, timeout, interval).Should(BeTrue())
+
+			By("Verifying AppProject has correct admin role")
+			adminRoleFound := false
+			for _, role := range appProj.Spec.Roles {
+				if role.Name == "project-team-admin" {
+					adminRoleFound = true
+					Expect(role.Groups).To(ContainElement("project-team-admin"))
+					Expect(role.Groups).To(ContainElement("project-team-admin-ci"))
+					Expect(role.Groups).To(HaveLen(2), "Admin role should only have admin groups")
+
+					// Verify admin policies
+					Expect(role.Policies).To(ContainElement(ContainSubstring("applications, *, project-team/*, allow")))
+					Expect(role.Policies).To(ContainElement(ContainSubstring("repositories, *, project-team/*, allow")))
+					Expect(role.Policies).To(ContainElement(ContainSubstring("exec, create, project-team/*, allow")))
+				}
+			}
+			Expect(adminRoleFound).To(BeTrue(), "Admin role should exist in AppProject")
+
+			By("Verifying AppProject has correct view role with role aggregation")
+			viewRoleFound := false
+			for _, role := range appProj.Spec.Roles {
+				if role.Name == "project-team-view" {
+					viewRoleFound = true
+					// View role should include ALL groups for role aggregation
+					Expect(role.Groups).To(ContainElement("project-team-view"))
+					Expect(role.Groups).To(ContainElement("project-team-view-ci"))
+					Expect(role.Groups).To(ContainElement("project-team-admin"))
+					Expect(role.Groups).To(ContainElement("project-team-admin-ci"))
+					Expect(role.Groups).To(HaveLen(4), "View role should have all groups for role aggregation")
+
+					// Verify view policies
+					Expect(role.Policies).To(ContainElement(ContainSubstring("applications, get, project-team/*, allow")))
+					Expect(role.Policies).To(ContainElement(ContainSubstring("repositories, get, project-team/*, allow")))
+					Expect(role.Policies).To(ContainElement(ContainSubstring("logs, get, project-team/*, allow")))
+				}
+			}
+			Expect(viewRoleFound).To(BeTrue(), "View role should exist in AppProject")
+		})
+	})
+
+	Context("When managing OpenShift Groups", func() {
+		It("Should add admin users to both admin and view groups", func() {
+			By("Verifying admin group contains admin users")
+			adminGroup := &userv1.Group{}
+			adminGroupLookup := types.NamespacedName{Name: "project-team-admin"}
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, adminGroupLookup, adminGroup)
+				return err == nil && len(adminGroup.Users) > 0
+			}, timeout, interval).Should(BeTrue())
+
+			Expect(adminGroup.Users).To(ContainElement("admin1"),
+				"Admin group should contain admin user")
+
+			By("Verifying view group contains admin users for role aggregation")
+			viewGroup := &userv1.Group{}
+			viewGroupLookup := types.NamespacedName{Name: "project-team-view"}
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, viewGroupLookup, viewGroup)
+				return err == nil && len(viewGroup.Users) > 0
+			}, timeout, interval).Should(BeTrue())
+
+			Expect(viewGroup.Users).To(ContainElement("admin1"),
+				"View group should contain admin user for role aggregation")
+			Expect(viewGroup.Users).To(ContainElement("viewer1"),
+				"View group should contain view user")
+		})
+
+		It("Should only add view users to view group", func() {
+			By("Verifying admin group does NOT contain view users")
+			adminGroup := &userv1.Group{}
+			adminGroupLookup := types.NamespacedName{Name: "project-team-admin"}
+			Expect(k8sClient.Get(ctx, adminGroupLookup, adminGroup)).Should(Succeed())
+
+			Expect(adminGroup.Users).NotTo(ContainElement("viewer1"),
+				"Admin group should NOT contain view-only users")
+
+			By("Verifying view group contains view users")
+			viewGroup := &userv1.Group{}
+			viewGroupLookup := types.NamespacedName{Name: "project-team-view"}
+			Expect(k8sClient.Get(ctx, viewGroupLookup, viewGroup)).Should(Succeed())
+
+			Expect(viewGroup.Users).To(ContainElement("viewer1"),
+				"View group should contain view user")
+		})
+
+		It("Should update groups when users are added", func() {
+			By("Getting the existing ArgocdUser")
+			argocdUser := &argocduserv1alpha1.ArgocdUser{}
+			argocdUserLookup := types.NamespacedName{Name: "project-team"}
+			Expect(k8sClient.Get(ctx, argocdUserLookup, argocdUser)).Should(Succeed())
+
+			By("Adding new users to the spec")
+			argocdUser.Spec.Admin.Users = []string{"admin1", "admin2"}
+			argocdUser.Spec.View.Users = []string{"viewer1", "viewer2"}
+			Expect(k8sClient.Update(ctx, argocdUser)).Should(Succeed())
+
+			By("Waiting for admin group to be updated")
+			adminGroup := &userv1.Group{}
+			adminGroupLookup := types.NamespacedName{Name: "project-team-admin"}
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, adminGroupLookup, adminGroup)
+				if err != nil {
+					return false
+				}
+				return len(adminGroup.Users) >= 2 && containsUser(adminGroup.Users, "admin2")
+			}, timeout, interval).Should(BeTrue())
+
+			Expect(adminGroup.Users).To(ContainElement("admin1"))
+			Expect(adminGroup.Users).To(ContainElement("admin2"))
+
+			By("Verifying both new admin users are in view group")
+			viewGroup := &userv1.Group{}
+			viewGroupLookup := types.NamespacedName{Name: "project-team-view"}
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, viewGroupLookup, viewGroup)
+				if err != nil {
+					return false
+				}
+				return containsUser(viewGroup.Users, "admin2") && containsUser(viewGroup.Users, "viewer2")
+			}, timeout, interval).Should(BeTrue())
+
+			Expect(viewGroup.Users).To(ContainElement("admin1"))
+			Expect(viewGroup.Users).To(ContainElement("admin2"))
+			Expect(viewGroup.Users).To(ContainElement("viewer1"))
+			Expect(viewGroup.Users).To(ContainElement("viewer2"))
+		})
+	})
 })
+
+// Helper function to check if a user is in the list
+func containsUser(users []string, user string) bool {
+	for _, u := range users {
+		if u == user {
+			return true
+		}
+	}
+	return false
+}

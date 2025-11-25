@@ -84,7 +84,11 @@ var _ = Describe("namespace controller to create teams", func() {
 			testAppProjLookup := types.NamespacedName{Name: "test-team", Namespace: "user-argocd"}
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, testAppProjLookup, testAppProj)
-				return err == nil
+				if err != nil {
+					return false
+				}
+				// Wait for Destinations to be populated by NamespaceReconciler
+				return len(testAppProj.Spec.Destinations) > 0 && len(testAppProj.Spec.SourceNamespaces) > 0
 			}, timeout, interval).Should(BeTrue())
 
 			// make sure appproject has the correct fields.

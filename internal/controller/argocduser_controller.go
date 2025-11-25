@@ -22,6 +22,7 @@ import (
 	"encoding/json"
 	"strings"
 
+	argov1alpha1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
 	userv1 "github.com/openshift/api/user/v1"
 	argocduserv1alpha1 "github.com/snapp-incubator/argocd-complementary-operator/api/v1alpha1"
 	"golang.org/x/crypto/bcrypt"
@@ -54,6 +55,7 @@ type ArgocdUserReconciler struct {
 //+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=user.openshift.io,resources=*,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=argoproj.io,resources=appprojects,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the clus k8s.io/api closer to the desired state.
@@ -69,6 +71,11 @@ func (r *ArgocdUserReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	argocduser := &argocduserv1alpha1.ArgocdUser{}
 	err := r.Get(context.TODO(), req.NamespacedName, argocduser)
 	if err != nil {
+		if errors.IsNotFound(err) {
+			log.Info("ArgocdUser resource not found, might be deleted")
+			// TODO: Add deletion logic for AppProject if needed
+			return ctrl.Result{}, nil
+		}
 		log.Error(err, "Failed to get argocduser")
 		return ctrl.Result{}, err
 	}
@@ -86,6 +93,29 @@ func (r *ArgocdUserReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	err = r.AddArgocdRBACPolicy(ctx, argocduser)
 	if err != nil {
 		log.Error(err, "Failed to add argocd rbac policy")
+		return ctrl.Result{}, err
+	}
+
+	// Create or update AppProject with RBAC configuration
+	if err := r.ReconcileAppProject(ctx, argocduser); err != nil {
+		log.Error(err, "Failed to reconcile AppProject")
+		return ctrl.Result{}, err
+	}
+
+	// Manage OpenShift groups for admin users (both admin and view groups)
+	if err := r.AddArgoUsersToGroup(ctx, argocduser, "admin", argocduser.Spec.Admin.Users); err != nil {
+		log.Error(err, "Failed to add admin users to admin group")
+		return ctrl.Result{}, err
+	}
+	// Admin users also need to be in view group for role aggregation
+	if err := r.AddArgoUsersToGroup(ctx, argocduser, "view", argocduser.Spec.Admin.Users); err != nil {
+		log.Error(err, "Failed to add admin users to view group")
+		return ctrl.Result{}, err
+	}
+
+	// Manage OpenShift groups for view users (only view group)
+	if err := r.AddArgoUsersToGroup(ctx, argocduser, "view", argocduser.Spec.View.Users); err != nil {
+		log.Error(err, "Failed to add view users to view group")
 		return ctrl.Result{}, err
 	}
 
@@ -165,21 +195,104 @@ func (r *ArgocdUserReconciler) AddArgoUsersToGroup(ctx context.Context, argocdus
 				ObjectMeta: metav1.ObjectMeta{
 					Name: groupName,
 				},
+				Users: argoUsers,
 			}
 			err = r.Create(ctx, group)
 			if err != nil {
 				log.Error(err, "Failed to create group")
 				return err
 			}
+			log.Info("Successfully created group with users")
+			return nil
+		}
+		return err
+	}
+
+	// Merge users: keep existing users and add new ones
+	existingUsers := make(map[string]bool)
+	for _, user := range group.Users {
+		existingUsers[user] = true
+	}
+	for _, user := range argoUsers {
+		if !existingUsers[user] {
+			group.Users = append(group.Users, user)
 		}
 	}
-	group.Users = argoUsers
+
 	err = r.Update(ctx, group)
 	if err != nil {
 		log.Error(err, "Failed to update group")
 		return err
 	}
-	log.Info("Successfully added users to group")
+	log.Info("Successfully updated group with users")
+	return nil
+}
+
+// ReconcileAppProject creates or updates the AppProject with RBAC configuration
+func (r *ArgocdUserReconciler) ReconcileAppProject(ctx context.Context, argocduser *argocduserv1alpha1.ArgocdUser) error {
+	log := log.FromContext(ctx)
+	teamName := argocduser.Name
+
+	// Create the desired AppProject
+	appProj := &argov1alpha1.AppProject{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      teamName,
+			Namespace: userArgocdNS,
+		},
+		Spec: argov1alpha1.AppProjectSpec{
+			// Note: Destinations, SourceNamespaces, and SourceRepos are managed by NamespaceReconciler
+			Destinations:     []argov1alpha1.ApplicationDestination{},
+			SourceNamespaces: []string{},
+			SourceRepos:      []string{},
+			Roles: []argov1alpha1.ProjectRole{
+				{
+					Groups: []string{teamName + "-admin", teamName + "-admin-ci"},
+					Name:   teamName + "-admin",
+					Policies: []string{
+						"p, proj:" + teamName + ":" + teamName + "-admin, applications, *, " + teamName + "/*, allow",
+						"p, proj:" + teamName + ":" + teamName + "-admin, repositories, *, " + teamName + "/*, allow",
+						"p, proj:" + teamName + ":" + teamName + "-admin, exec, create, " + teamName + "/*, allow",
+					},
+				},
+				{
+					// View role includes both admin and view groups for role aggregation
+					Groups: []string{teamName + "-admin", teamName + "-admin-ci", teamName + "-view", teamName + "-view-ci"},
+					Name:   teamName + "-view",
+					Policies: []string{
+						"p, proj:" + teamName + ":" + teamName + "-view, applications, get, " + teamName + "/*, allow",
+						"p, proj:" + teamName + ":" + teamName + "-view, repositories, get, " + teamName + "/*, allow",
+						"p, proj:" + teamName + ":" + teamName + "-view, logs, get, " + teamName + "/*, allow",
+					},
+				},
+			},
+		},
+	}
+
+	// Check if AppProject already exists
+	found := &argov1alpha1.AppProject{}
+	err := r.Get(ctx, types.NamespacedName{Name: teamName, Namespace: userArgocdNS}, found)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			log.Info("Creating new AppProject", "name", teamName)
+			if err := r.Create(ctx, appProj); err != nil {
+				log.Error(err, "Failed to create AppProject")
+				return err
+			}
+			log.Info("Successfully created AppProject")
+			return nil
+		}
+		log.Error(err, "Failed to get AppProject")
+		return err
+	}
+
+	// Update existing AppProject - only update Roles, preserve Destinations, SourceNamespaces, and SourceRepos
+	// These fields are managed by NamespaceReconciler
+	found.Spec.Roles = appProj.Spec.Roles
+	if err := r.Update(ctx, found); err != nil {
+		log.Error(err, "Failed to update AppProject")
+		return err
+	}
+	log.Info("Successfully updated AppProject RBAC")
 	return nil
 }
 
