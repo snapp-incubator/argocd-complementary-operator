@@ -67,6 +67,61 @@ spec:
     - user2
 ```
 
+### Deletion and Lifecycle Management
+
+The operator implements deletion prevention to ensure safe removal of ArgoCD resources:
+
+**Finalizers**: When an `ArgocdUser` is created, the operator automatically adds a finalizer (`argocd.snappcloud.io/finalizer`) to prevent accidental deletion.
+
+**Deletion Protection**: An `ArgocdUser` cannot be deleted if any namespace still references it via the `argocd.snappcloud.io/appproj` label. This includes:
+
+- Single-team namespaces (e.g., `argocd.snappcloud.io/appproj: team-a`)
+- Multi-team namespaces (e.g., `argocd.snappcloud.io/appproj: team-a.team-b`)
+
+**Deletion Process**:
+
+1. When you delete an `ArgocdUser`, it enters a pending deletion state
+2. The operator checks if any namespaces reference this team
+3. If namespaces still reference it, deletion is blocked and the resource remains
+4. Once all namespace labels are removed, the operator:
+   - Cleans up RBAC policies from `argocd-rbac-cm`
+   - Removes static accounts from `argocd-cm`
+   - Deletes account passwords from `argocd-secret`
+   - Removes the finalizer
+   - Allows Kubernetes to complete the deletion
+
+**Garbage Collection**: The operator uses OwnerReferences to enable automatic cleanup:
+
+- When an `ArgocdUser` is deleted, its associated `AppProject` is automatically removed
+- OpenShift Groups (if used) are also automatically cleaned up
+- This ensures no orphaned resources remain in the cluster
+
+### Architecture
+
+The operator uses two separate controllers with distinct responsibilities:
+
+**ArgocdUserReconciler**:
+
+- Creates and manages `AppProject` resources
+- Configures RBAC policies and roles in `argocd-rbac-cm`
+- Creates static accounts in `argocd-cm`
+- Manages account passwords in `argocd-secret`
+- Creates OpenShift Groups for RBAC integration
+- Sets OwnerReferences for garbage collection
+- Manages finalizers for safe deletion
+
+**NamespaceReconciler**:
+
+- Watches namespace labels (`argocd.snappcloud.io/appproj` and `argocd.snappcloud.io/source`)
+- Updates `AppProject` destinations based on namespace labels
+- Updates `AppProject` source namespaces
+- Supports multi-team namespaces (e.g., `team-a.team-b`)
+- **Does not create** `AppProject` resources (only updates existing ones)
+
+**Separation of Concerns**: The NamespaceReconciler only updates `AppProject` destinations and sources. It validates that the `AppProject` exists (created by ArgocdUserReconciler) before attempting updates. If an `AppProject` doesn't exist, the reconciliation fails with an error, ensuring users create the `ArgocdUser` resource first.
+
+**Multi-Team Support**: When a namespace has a multi-team label (e.g., `argocd.snappcloud.io/appproj: team-a.team-b`), both teams' `AppProjects` will include that namespace in their destinations, enabling shared access.
+
 ## Instructions
 
 ### Development
