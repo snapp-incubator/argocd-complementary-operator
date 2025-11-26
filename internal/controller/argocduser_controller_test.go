@@ -113,7 +113,7 @@ var _ = Describe("ArgocdUser controller RBAC policy generation", Ordered, func()
 			By("Creating an ArgocdUser resource")
 			argocdUser := &argocduserv1alpha1.ArgocdUser{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-team",
+					Name: "rbac-gen-test",
 				},
 				Spec: argocduserv1alpha1.ArgocdUserSpec{
 					Admin: argocduserv1alpha1.ArgocdCIAdmin{
@@ -129,7 +129,7 @@ var _ = Describe("ArgocdUser controller RBAC policy generation", Ordered, func()
 			Expect(k8sClient.Create(ctx, argocdUser)).Should(Succeed())
 
 			By("Verifying the ArgocdUser was created")
-			argocdUserLookup := types.NamespacedName{Name: "test-team"}
+			argocdUserLookup := types.NamespacedName{Name: "rbac-gen-test"}
 			Expect(k8sClient.Get(ctx, argocdUserLookup, argocdUser)).Should(Succeed())
 
 			By("Waiting for RBAC policies to be added to ConfigMap")
@@ -145,7 +145,7 @@ var _ = Describe("ArgocdUser controller RBAC policy generation", Ordered, func()
 					return false
 				}
 				// Check if at least one expected policy exists
-				return strings.Contains(updatedConfigMap.Data["policy.csv"], "test-team-admin-ci")
+				return strings.Contains(updatedConfigMap.Data["policy.csv"], "rbac-gen-test-admin-ci")
 			}, timeout, interval).Should(BeTrue())
 
 			By("Verifying global common role definition is present")
@@ -157,20 +157,20 @@ var _ = Describe("ArgocdUser controller RBAC policy generation", Ordered, func()
 
 			By("Verifying group bindings to common role are present")
 			// All groups should be bound to common role
-			Expect(policyCsv).To(ContainSubstring("g, test-team-admin-ci, role:common"),
+			Expect(policyCsv).To(ContainSubstring("g, rbac-gen-test-admin-ci, role:common"),
 				"Should assign admin-ci to common role")
-			Expect(policyCsv).To(ContainSubstring("g, test-team-view-ci, role:common"),
+			Expect(policyCsv).To(ContainSubstring("g, rbac-gen-test-view-ci, role:common"),
 				"Should assign view-ci to common role")
-			Expect(policyCsv).To(ContainSubstring("g, test-team-admin, role:common"),
+			Expect(policyCsv).To(ContainSubstring("g, rbac-gen-test-admin, role:common"),
 				"Should assign admin to common role")
-			Expect(policyCsv).To(ContainSubstring("g, test-team-view, role:common"),
+			Expect(policyCsv).To(ContainSubstring("g, rbac-gen-test-view, role:common"),
 				"Should assign view to common role")
 
 			By("Verifying fine-grained policies are NOT in policy.csv (they belong in AppProject)")
 			// Fine-grained policies should NOT be in global config
-			Expect(policyCsv).NotTo(ContainSubstring("role:test-team-admin, repositories"),
+			Expect(policyCsv).NotTo(ContainSubstring("role:rbac-gen-test-admin, repositories"),
 				"Repository policies should be in AppProject, not global config")
-			Expect(policyCsv).NotTo(ContainSubstring("role:test-team-view, applications"),
+			Expect(policyCsv).NotTo(ContainSubstring("role:rbac-gen-test-view, applications"),
 				"Application policies should be in AppProject, not global config")
 		})
 
@@ -188,14 +188,14 @@ var _ = Describe("ArgocdUser controller RBAC policy generation", Ordered, func()
 					return false
 				}
 				// Check if accounts are created
-				_, adminExists := configMap.Data["accounts.test-team-admin-ci"]
-				_, viewExists := configMap.Data["accounts.test-team-view-ci"]
+				_, adminExists := configMap.Data["accounts.rbac-gen-test-admin-ci"]
+				_, viewExists := configMap.Data["accounts.rbac-gen-test-view-ci"]
 				return adminExists && viewExists
 			}, timeout, interval).Should(BeTrue())
 
 			// Verify the account capabilities
-			Expect(configMap.Data["accounts.test-team-admin-ci"]).To(Equal("apiKey,login"))
-			Expect(configMap.Data["accounts.test-team-view-ci"]).To(Equal("apiKey,login"))
+			Expect(configMap.Data["accounts.rbac-gen-test-admin-ci"]).To(Equal("apiKey,login"))
+			Expect(configMap.Data["accounts.rbac-gen-test-view-ci"]).To(Equal("apiKey,login"))
 		})
 	})
 
@@ -203,7 +203,7 @@ var _ = Describe("ArgocdUser controller RBAC policy generation", Ordered, func()
 		It("Should not duplicate RBAC policies on reconciliation", func() {
 			By("Getting the existing ArgocdUser")
 			argocdUser := &argocduserv1alpha1.ArgocdUser{}
-			argocdUserLookup := types.NamespacedName{Name: "test-team"}
+			argocdUserLookup := types.NamespacedName{Name: "rbac-gen-test"}
 			Expect(k8sClient.Get(ctx, argocdUserLookup, argocdUser)).Should(Succeed())
 
 			By("Updating the ArgocdUser spec")
@@ -224,7 +224,7 @@ var _ = Describe("ArgocdUser controller RBAC policy generation", Ordered, func()
 			policyCsv := configMap.Data["policy.csv"]
 
 			// Count occurrences of a specific policy to ensure no duplicates
-			testPolicy := "g, test-team-admin-ci, role:common"
+			testPolicy := "g, rbac-gen-test-admin-ci, role:common"
 			occurrences := strings.Count(policyCsv, testPolicy)
 			Expect(occurrences).To(Equal(1), "Policy should appear exactly once, not be duplicated")
 
