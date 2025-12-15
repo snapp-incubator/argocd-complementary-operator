@@ -30,7 +30,7 @@ jobs:
         with:
           go-version-file: "go.mod"
       - run: make test
-      - uses: codecov/codecov-action@v5.5.1
+      - uses: codecov/codecov-action@v5.5.2
         with:
           files: cover.out
           token: ${{ secrets.CODECOV_TOKEN }}
