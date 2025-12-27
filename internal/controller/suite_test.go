@@ -88,6 +88,7 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
+	// Only NamespaceReconciler is registered. Adding ArgocdUserReconciler would help
 	err = (&controller.NamespaceReconciler{
 		Client: k8sManager.GetClient(),
 		Scheme: k8sManager.GetScheme(),
@@ -109,7 +110,3 @@ var _ = AfterSuite(func() {
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 })
-
-func TestNamespace_controller(t *testing.T) {
-	RegisterFailHandler(Fail)
-}

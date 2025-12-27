@@ -8,6 +8,8 @@ rules:
   - ""
   resources:
   - configmaps
+  - namespaces
+  - secrets
   verbs:
   - create
   - delete
@@ -19,15 +21,17 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - secrets
+  - namespaces/finalizers
   verbs:
-  - create
-  - delete
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - namespaces/status
+  verbs:
   - get
-  - list
   - patch
   - update
-  - watch
 - apiGroups:
   - argocd.snappcloud.io
   resources:
@@ -65,32 +69,6 @@ rules:
   - patch
   - update
   - watch
-- apiGroups:
-  - ""
-  resources:
-  - namespaces
-  verbs:
-  - create
-  - delete
-  - get
-  - list
-  - patch
-  - update
-  - watch
-- apiGroups:
-  - ""
-  resources:
-  - namespaces/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - ""
-  resources:
-  - namespaces/status
-  verbs:
-  - get
-  - patch
-  - update
 - apiGroups:
   - user.openshift.io
   resources:
