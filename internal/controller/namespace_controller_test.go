@@ -17,7 +17,6 @@ limitations under the License.
 package controller_test
 
 import (
-	"context"
 	"time"
 
 	argov1alpha1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
@@ -29,30 +28,12 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 )
 
-var ctx = context.Background()
-
 var _ = Describe("namespace controller to create teams", func() {
 	// Define utility constants for object names and testing timeouts/durations and intervals.
 	const (
 		timeout  = time.Second * 20
 		interval = time.Millisecond * 30
 	)
-	// Creating user-argocd namespace
-	Context("When cluster bootstrap", func() {
-		It("Should create user-argocd NS", func() {
-			By("Creating user-argocd NS", func() {
-				ArgoNs := &corev1.Namespace{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "user-argocd",
-					},
-				}
-				Expect(k8sClient.Create(ctx, ArgoNs)).Should(Succeed())
-
-				lookupns := types.NamespacedName{Name: "user-argocd"}
-				Expect(k8sClient.Get(ctx, lookupns, ArgoNs)).Should(Succeed())
-			})
-		})
-	})
 
 	// Creating AppProj as soon as we create a test namespace
 	Context("when creating namespace", func() {

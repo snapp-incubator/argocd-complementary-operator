@@ -105,12 +105,18 @@ func InstallCertManager() error {
 
 // LoadImageToKindCluster loads a local docker image to the kind cluster
 func LoadImageToKindClusterWithName(name string) error {
+	var cmd = &exec.Cmd{}
 	cluster := "kind"
 	if v, ok := os.LookupEnv("KIND_CLUSTER"); ok {
 		cluster = v
 	}
-	kindOptions := []string{"load", "docker-image", name, "--name", cluster}
-	cmd := exec.Command("kind", kindOptions...)
+	if cluster == "orbstack" {
+		cmdOptions := []string{"image", "inspect", name}
+		cmd = exec.Command("docker", cmdOptions...)
+	} else {
+		cmdOptions := []string{"load", "docker-image", name, "--name", cluster}
+		cmd = exec.Command("kind", cmdOptions...)
+	}
 	_, err := Run(cmd)
 	return err
 }

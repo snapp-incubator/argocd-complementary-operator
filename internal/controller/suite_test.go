@@ -24,8 +24,12 @@ import (
 	argov1alpha1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	userv1 "github.com/openshift/api/user/v1"
 	"github.com/snapp-incubator/argocd-complementary-operator/internal/controller"
 	corev1 "k8s.io/api/core/v1"
+	rbacv1 "k8s.io/api/rbac/v1"
+	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -46,6 +50,11 @@ var (
 	testEnv   *envtest.Environment
 	cancel    context.CancelFunc
 )
+var ctx = context.Background()
+
+const (
+	argocdAppsNs = "user-argocd"
+)
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
@@ -55,9 +64,9 @@ func TestAPIs(t *testing.T) {
 var _ = BeforeSuite(func() {
 	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
 
-	ctx, cancel = context.WithCancel(context.TODO())
+	ctx, cancel = context.WithCancel(ctx)
 
-	By("bootstrapping test environment")
+	By("Bootstrapping test environment")
 	testEnv = &envtest.Environment{
 		CRDDirectoryPaths: []string{
 			filepath.Join("..", "..", "config", "crd", "bases"),
@@ -79,6 +88,12 @@ var _ = BeforeSuite(func() {
 	err = argov1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
+	err = userv1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
+	err = rbacv1.AddToScheme(scheme.Scheme)
+	Expect(err).NotTo(HaveOccurred())
+
 	k8sClient, err = client.New(cfg, client.Options{Scheme: scheme.Scheme})
 	Expect(err).NotTo(HaveOccurred())
 	Expect(k8sClient).NotTo(BeNil())
@@ -88,8 +103,72 @@ var _ = BeforeSuite(func() {
 	})
 	Expect(err).ToNot(HaveOccurred())
 
-	// Only NamespaceReconciler is registered. Adding ArgocdUserReconciler would help
+	// Create user-argocd namespace
+	By("Creating user-argocd NS")
+	argoNs := &corev1.Namespace{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: argocdAppsNs,
+		},
+	}
+	Expect(k8sClient.Create(ctx, argoNs)).Should(Succeed())
+	argoNsLookup := types.NamespacedName{Name: argocdAppsNs}
+	Expect(k8sClient.Get(ctx, argoNsLookup, argoNs)).Should(Succeed())
+
+	// Create argocd-cm ConfigMap
+	By("Creating argocd-cm ConfigMap")
+	argocdCM := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "argocd-cm",
+			Namespace: argocdAppsNs,
+		},
+		Data: map[string]string{
+			"initial.key": "initial-value",
+		},
+	}
+	Expect(k8sClient.Create(ctx, argocdCM)).Should(Succeed())
+	argocdCMLookup := types.NamespacedName{Name: "argocd-cm", Namespace: argocdAppsNs}
+	Expect(k8sClient.Get(ctx, argocdCMLookup, argocdCM)).Should(Succeed())
+
+	// Create argocd-rbac-cm ConfigMap
+	By("Creating argocd-rbac-cm ConfigMap")
+	argocdRBACCM := &corev1.ConfigMap{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "argocd-rbac-cm",
+			Namespace: argocdAppsNs,
+		},
+		Data: map[string]string{
+			"policy.default": "role:common\n",
+			"policy.csv":     "p, role:common, clusters, get, *, allow\n",
+		},
+	}
+	Expect(k8sClient.Create(ctx, argocdRBACCM)).Should(Succeed())
+	argocdRBACCMLookup := types.NamespacedName{Name: "argocd-rbac-cm", Namespace: argocdAppsNs}
+	Expect(k8sClient.Get(ctx, argocdRBACCMLookup, argocdRBACCM)).Should(Succeed())
+
+	// Create argocd-secret Secret
+	By("Creating argocd-secret Secret")
+	argocdSecret := &corev1.Secret{
+		ObjectMeta: metav1.ObjectMeta{
+			Name:      "argocd-secret",
+			Namespace: argocdAppsNs,
+		},
+		Data: map[string][]byte{
+			"initial.key": []byte("initial-value"),
+		},
+	}
+	Expect(k8sClient.Create(ctx, argocdSecret)).Should(Succeed())
+	argocdSecretLookup := types.NamespacedName{Name: "argocd-secret", Namespace: argocdAppsNs}
+	Expect(k8sClient.Get(ctx, argocdSecretLookup, argocdSecret)).Should(Succeed())
+
+	// Register NamespaceReconciler
 	err = (&controller.NamespaceReconciler{
+		Client: k8sManager.GetClient(),
+		Scheme: k8sManager.GetScheme(),
+	}).SetupWithManager(k8sManager)
+	Expect(err).ToNot(HaveOccurred())
+
+	// Register ArgocdUserReconciler
+	err = (&controller.ArgocdUserReconciler{
 		Client: k8sManager.GetClient(),
 		Scheme: k8sManager.GetScheme(),
 	}).SetupWithManager(k8sManager)
