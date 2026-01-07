@@ -20,12 +20,13 @@ import (
 	"context"
 	"path/filepath"
 	"testing"
+	"time"
 
 	argov1alpha1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
-	userv1 "github.com/openshift/api/user/v1"
 	"github.com/snapp-incubator/argocd-complementary-operator/internal/controller"
+	"go.uber.org/zap/zapcore"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -37,6 +38,9 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
+	// Uncomment if you are going to test the openshift group creation
+	// userv1 "github.com/openshift/api/user/v1"
+
 	argocduserv1alpha1 "github.com/snapp-incubator/argocd-complementary-operator/api/v1alpha1"
 	//+kubebuilder:scaffold:imports
 )
@@ -44,25 +48,38 @@ import (
 // These tests use Ginkgo (BDD-style Go testing framework). Refer to
 // http://onsi.github.io/ginkgo/ to learn more about Ginkgo.
 
-// var cfg *rest.Config
+const (
+	timeout      = time.Second * 30
+	interval     = time.Millisecond * 100
+	argocdAppsNs = "user-argocd"
+	testAuName   = "test-au"
+)
+
 var (
 	k8sClient client.Client
 	testEnv   *envtest.Environment
 	cancel    context.CancelFunc
-)
-var ctx = context.Background()
 
-const (
-	argocdAppsNs = "user-argocd"
+	ctx               = context.Background()
+	testAuAdminCIPass = "some_admin_pass"
+	testAuViewCIPass  = "some_view_pass"
+	testAuAdminUsers  = []string{"admin-a", "admin-b"}
+	testAuviewUsers   = []string{"view-a", "view-b"}
 )
 
 func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
-	RunSpecs(t, "Controller Suite")
+	suiteConfig, reporterConfig := GinkgoConfiguration()
+	reporterConfig.Verbose = true        // Enable verbose output
+	reporterConfig.VeryVerbose = false   // Enable very verbose output
+	reporterConfig.FullTrace = true      // Show full stack traces
+	reporterConfig.ShowNodeEvents = true // Show node lifecycle events
+
+	RunSpecs(t, "Controller Suite", suiteConfig, reporterConfig)
 }
 
 var _ = BeforeSuite(func() {
-	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true)))
+	logf.SetLogger(zap.New(zap.WriteTo(GinkgoWriter), zap.UseDevMode(true), zap.Level(zapcore.DebugLevel))) // Add this for debug level logs
 
 	ctx, cancel = context.WithCancel(ctx)
 
@@ -88,8 +105,9 @@ var _ = BeforeSuite(func() {
 	err = argov1alpha1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
 
-	err = userv1.AddToScheme(scheme.Scheme)
-	Expect(err).NotTo(HaveOccurred())
+	// Uncomment if you are going to test the openshift group creation
+	// err = userv1.AddToScheme(scheme.Scheme)
+	// Expect(err).NotTo(HaveOccurred())
 
 	err = rbacv1.AddToScheme(scheme.Scheme)
 	Expect(err).NotTo(HaveOccurred())
@@ -102,6 +120,28 @@ var _ = BeforeSuite(func() {
 		Scheme: scheme.Scheme,
 	})
 	Expect(err).ToNot(HaveOccurred())
+
+	// Register NamespaceReconciler
+	err = (&controller.NamespaceReconciler{
+		Client: k8sManager.GetClient(),
+		Scheme: k8sManager.GetScheme(),
+	}).SetupWithManager(k8sManager)
+	Expect(err).ToNot(HaveOccurred())
+
+	// Register ArgocdUserReconciler
+	err = (&controller.ArgocdUserReconciler{
+		Client: k8sManager.GetClient(),
+		Scheme: k8sManager.GetScheme(),
+	}).SetupWithManager(k8sManager)
+	Expect(err).ToNot(HaveOccurred())
+
+	// changing configuration according to the issue mentioned here:
+	// https://github.com/kubernetes-sigs/controller-runtime/issues/1571
+	go func() {
+		defer GinkgoRecover()
+		err = k8sManager.Start(ctx)
+		Expect(err).ToNot(HaveOccurred(), "failed to start manager")
+	}()
 
 	// Create user-argocd namespace
 	By("Creating user-argocd NS")
@@ -129,22 +169,6 @@ var _ = BeforeSuite(func() {
 	argocdCMLookup := types.NamespacedName{Name: "argocd-cm", Namespace: argocdAppsNs}
 	Expect(k8sClient.Get(ctx, argocdCMLookup, argocdCM)).Should(Succeed())
 
-	// Create argocd-rbac-cm ConfigMap
-	By("Creating argocd-rbac-cm ConfigMap")
-	argocdRBACCM := &corev1.ConfigMap{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      "argocd-rbac-cm",
-			Namespace: argocdAppsNs,
-		},
-		Data: map[string]string{
-			"policy.default": "role:common\n",
-			"policy.csv":     "p, role:common, clusters, get, *, allow\n",
-		},
-	}
-	Expect(k8sClient.Create(ctx, argocdRBACCM)).Should(Succeed())
-	argocdRBACCMLookup := types.NamespacedName{Name: "argocd-rbac-cm", Namespace: argocdAppsNs}
-	Expect(k8sClient.Get(ctx, argocdRBACCMLookup, argocdRBACCM)).Should(Succeed())
-
 	// Create argocd-secret Secret
 	By("Creating argocd-secret Secret")
 	argocdSecret := &corev1.Secret{
@@ -160,27 +184,9 @@ var _ = BeforeSuite(func() {
 	argocdSecretLookup := types.NamespacedName{Name: "argocd-secret", Namespace: argocdAppsNs}
 	Expect(k8sClient.Get(ctx, argocdSecretLookup, argocdSecret)).Should(Succeed())
 
-	// Register NamespaceReconciler
-	err = (&controller.NamespaceReconciler{
-		Client: k8sManager.GetClient(),
-		Scheme: k8sManager.GetScheme(),
-	}).SetupWithManager(k8sManager)
-	Expect(err).ToNot(HaveOccurred())
-
-	// Register ArgocdUserReconciler
-	err = (&controller.ArgocdUserReconciler{
-		Client: k8sManager.GetClient(),
-		Scheme: k8sManager.GetScheme(),
-	}).SetupWithManager(k8sManager)
-	Expect(err).ToNot(HaveOccurred())
-
-	// changing configuration according to the issue mentioned here:
-	// https://github.com/kubernetes-sigs/controller-runtime/issues/1571
-	go func() {
-		defer GinkgoRecover()
-		err = k8sManager.Start(ctx)
-		Expect(err).ToNot(HaveOccurred(), "failed to start manager")
-	}()
+	// Wait for cache to sync before running tests
+	By("Waiting for manager cache to sync")
+	Expect(k8sManager.GetCache().WaitForCacheSync(ctx)).Should(BeTrue(), "cache should sync")
 })
 
 var _ = AfterSuite(func() {

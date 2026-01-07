@@ -17,32 +17,21 @@ limitations under the License.
 package controller_test
 
 import (
-	"time"
-
 	argov1alpha1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 	userv1 "github.com/openshift/api/user/v1"
 	argocduserv1alpha1 "github.com/snapp-incubator/argocd-complementary-operator/api/v1alpha1"
+	"golang.org/x/crypto/bcrypt"
+	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 var _ = Describe("Argocduser controller", func() {
-	// Define utility constants for object names and testing timeouts/durations and intervals.
-	const (
-		timeout      = time.Second * 20
-		interval     = time.Millisecond * 30
-		argocdAppsNs = "user-argocd"
-		testAuName   = "test-au"
-	)
-	var (
-		testAuAdminCIPass = "some_admin_pass"
-		testAuViewCIPass  = "some_view_pass"
-		testAuAdminUsers  = []string{"admin-a", "admin-b"}
-		testAuviewUsers   = []string{"view-a", "view-b"}
-	)
+	logger := logf.FromContext(ctx)
 	// Creating AppProj as soon as we create an argocduser object
 	Context("When creating argocduser", func() {
 		It("Should create & verify the ArgocdUser is created", func() {
@@ -88,6 +77,9 @@ var _ = Describe("Argocduser controller", func() {
 			}, timeout, interval).Should(Succeed())
 
 			By("Verify test-au-argocduser-clusterrole ClusterRole has correct spec")
+			Expect(clusterRole.ObjectMeta.OwnerReferences[0].APIVersion).Should(Equal("argocd.snappcloud.io/v1alpha1"))
+			Expect(clusterRole.ObjectMeta.OwnerReferences[0].Kind).Should(Equal("ArgocdUser"))
+			Expect(clusterRole.ObjectMeta.OwnerReferences[0].Name).Should(Equal(testAuName))
 			Expect(clusterRole.Rules).Should(ConsistOf(expectedRules))
 		})
 		It("Should create & verify the corresponding ClusterRoleBinding", func() {
@@ -109,11 +101,17 @@ var _ = Describe("Argocduser controller", func() {
 			}, timeout, interval).Should(Succeed())
 
 			By("Verify test-au-argocduser-clusterrolebinding ClusterRoleBinding has correct spec")
+			Expect(clusterRoleBinding.ObjectMeta.OwnerReferences[0].APIVersion).Should(Equal("argocd.snappcloud.io/v1alpha1"))
+			Expect(clusterRoleBinding.ObjectMeta.OwnerReferences[0].Kind).Should(Equal("ArgocdUser"))
+			Expect(clusterRoleBinding.ObjectMeta.OwnerReferences[0].Name).Should(Equal(testAuName))
 			Expect(clusterRoleBinding.RoleRef.Name).Should(Equal(expectedRoleRefName))
 			Expect(clusterRoleBinding.Subjects).Should(ContainElements(expectedSubjects))
 		})
 		It("Should create & verify the corresponding Group", func() {
-			Skip("OpenShift Groups require real OpenShift cluster - test in E2E")
+			// Check if Group CRD is registered in scheme
+			if !k8sClient.Scheme().Recognizes(userv1.GroupVersion.WithKind("Group")) {
+				Skip("OpenShift Group kind is not registered in scheme. Test them in E2E tests - skipping Group tests")
+			}
 			By("Verifying admin Group is created")
 			adminGroup := &userv1.Group{}
 			adminGroupLookup := types.NamespacedName{Name: testAuName + "-admin"}
@@ -137,77 +135,115 @@ var _ = Describe("Argocduser controller", func() {
 		It("Should create & verify the corresponding AppProject", func() {
 			appProj := &argov1alpha1.AppProject{}
 			lookup := types.NamespacedName{Name: testAuName, Namespace: argocdAppsNs}
+			expectedAdminPolicies := []string{
+				"p, proj:" + testAuName + ":" + testAuName + "-admin, applications, *, " + testAuName + "/*, allow",
+				"p, proj:" + testAuName + ":" + testAuName + "-admin, repositories, *, " + testAuName + "/*, allow",
+				"p, proj:" + testAuName + ":" + testAuName + "-admin, exec, create, " + testAuName + "/*, allow",
+			}
+			expectedAdminGroups := []string{
+				"test-au-admin",
+				"test-au-admin-ci",
+			}
+			expectedViewPolicies := []string{
+				"p, proj:" + testAuName + ":" + testAuName + "-view, applications, get, " + testAuName + "/*, allow",
+				"p, proj:" + testAuName + ":" + testAuName + "-view, repositories, get, " + testAuName + "/*, allow",
+				"p, proj:" + testAuName + ":" + testAuName + "-view, logs, get, " + testAuName + "/*, allow",
+			}
+			expectedViewGroups := []string{
+				"test-au-admin",
+				"test-au-admin-ci",
+				"test-au-view",
+				"test-au-view-ci",
+			}
 			Eventually(func() error {
 				return k8sClient.Get(ctx, lookup, appProj)
 			}, timeout, interval).Should(Succeed())
-
-			// TODO
-			// make sure appproject has the correct spec.
-
+			Expect(appProj.Spec.Roles[0].Name).To(Equal(testAuName + "-admin"))
+			Expect(appProj.Spec.Roles[0].Policies).To(ContainElements(expectedAdminPolicies))
+			Expect(appProj.Spec.Roles[0].Groups).To(ContainElements(expectedAdminGroups))
+			Expect(appProj.Spec.Roles[1].Name).To(Equal(testAuName + "-view"))
+			Expect(appProj.Spec.Roles[1].Policies).To(ContainElements(expectedViewPolicies))
+			Expect(appProj.Spec.Roles[1].Groups).To(ContainElements(expectedViewGroups))
 		})
 		It("Should update or create the `argocd-cm` ConfigMap with required accounts", func() {
-			// TODO
+			var expectedKey string
+			cm := &corev1.ConfigMap{}
+			lookup := types.NamespacedName{Name: "argocd-cm", Namespace: argocdAppsNs}
+
 			By("Verifying argocd-cm is updated with accounts.<ACCOUNT-admin>")
-			// Eventually(func() bool {
-			// 	cm := &corev1.ConfigMap{}
-			// 	lookup := types.NamespacedName{Name: "argocd-cm", Namespace: argocdAppsNs}
-			// 	err := k8sClient.Get(ctx, lookup, cm)
-			// 	if err != nil {
-			// 		return false
-			// 	}
+			expectedKey = "accounts." + testAuName + "-admin-ci"
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, lookup, cm)
+				if err != nil {
+					logger.Error(err, "ConfigMap not found yet")
+					return false
+				}
+				// Check for admin CI account
+				value, exists := cm.Data[expectedKey]
+				return exists && value == "apiKey,login"
+			}, timeout, interval).Should(BeTrue())
 
-			// 	// Check for admin CI account
-			// 	expectedKey := "accounts." + testAuName + "-admin-ci"
-			// 	value, exists := cm.Data[expectedKey]
-			// 	return exists && value == "apiKey,login"
-			// }, timeout, interval).Should(BeTrue())
-
-			// TODO
 			By("Verifying argocd-cm is updated with accounts.<ACCOUNT-view>")
-			// Eventually(func() bool {
-			// 	cm := &corev1.ConfigMap{}
-			// 	err := k8sClient.Get(ctx,
-			// 		types.NamespacedName{Name: "argocd-cm", Namespace: argocdAppsNs},
-			// 		cm)
-			// 	if err != nil {
-			// 		return false
-			// 	}
-
-			// 	// Check for view CI account
-			// 	expectedKey := "accounts." + testAuName + "-view-ci"
-			// 	value, exists := cm.Data[expectedKey]
-			// 	return exists && value == "apiKey,login"
-			// }, timeout, interval).Should(BeTrue())
+			expectedKey = "accounts." + testAuName + "-view-ci"
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, lookup, cm)
+				if err != nil {
+					logger.Error(err, "ConfigMap not found yet")
+					return false
+				}
+				// Check for admin CI account
+				value, exists := cm.Data[expectedKey]
+				return exists && value == "apiKey,login"
+			}, timeout, interval).Should(BeTrue())
 		})
 		It("Should update or create the `argocd-secret` Secret with required accounts", func() {
-			// TODO
+			var expectedKey string
+			sec := &corev1.Secret{}
+			lookup := types.NamespacedName{Name: "argocd-secret", Namespace: argocdAppsNs}
+
+			// Check for admin CI account
 			By("Verifying argocd-secret is updated with accounts.<ACCOUNT-admin>.password")
-			// TODO
+			expectedKey = "accounts." + testAuName + "-admin-ci.password"
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, lookup, sec)
+				if err != nil {
+					logger.Error(err, "Secret not found yet")
+					return false
+				}
+				value, exists := sec.Data[expectedKey]
+				if exists {
+					// sec.Data already contains decoded bytes (Kubernetes auto-decodes base64)
+					// value is the bcrypt hash as bytes, ready to use directly
+					err = bcrypt.CompareHashAndPassword(value, []byte(testAuAdminCIPass))
+					if err != nil {
+						logger.Error(err, "Password hash mismatch for 'admin' user")
+						return false
+					}
+				}
+				return exists
+			}, timeout, interval).Should(BeTrue())
+
+			// Check for view CI account
 			By("Verifying argocd-secret is updated with accounts.<ACCOUNT-view>.password")
-		})
-		It("Should update ConfigMaps", func() {
-			// WIP TODO
-
-			// By("Verifying argocd-rbac-cm is updated with policies")
-			// Eventually(func() bool {
-			// 	cm := &corev1.ConfigMap{}
-			// 	err := k8sClient.Get(ctx,
-			// 		types.NamespacedName{Name: "argocd-rbac-cm", Namespace: argocdAppsNs},
-			// 		cm)
-			// 	if err != nil {
-			// 		return false
-			// 	}
-
-			// 	// Check that policy.csv contains our team
-			// 	policyCSV, exists := cm.Data["policy.csv"]
-			// 	if !exists {
-			// 		return false
-			// 	}
-
-			// 	// Should contain role definitions
-			// 	return strings.Contains(policyCSV, "role:"+testAuName+"-admin")
-			// }, timeout, interval).Should(BeTrue())
-
+			expectedKey = "accounts." + testAuName + "-view-ci.password"
+			Eventually(func() bool {
+				err := k8sClient.Get(ctx, lookup, sec)
+				if err != nil {
+					logger.Error(err, "Secret not found yet")
+					return false
+				}
+				value, exists := sec.Data[expectedKey]
+				if exists {
+					// sec.Data already contains decoded bytes (Kubernetes auto-decodes base64)
+					// value is the bcrypt hash as bytes, ready to use directly
+					err = bcrypt.CompareHashAndPassword(value, []byte(testAuViewCIPass))
+					if err != nil {
+						logger.Error(err, "Password hash mismatch for 'view' user")
+						return false
+					}
+				}
+				return exists
+			}, timeout, interval).Should(BeTrue())
 		})
 	})
 })

@@ -19,7 +19,6 @@ package controller
 import (
 	"context"
 	"fmt"
-	"os"
 	"reflect"
 	"strings"
 	"sync"
@@ -30,7 +29,6 @@ import (
 	"github.com/snapp-incubator/argocd-complementary-operator/pkg/nameset"
 	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
-	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
@@ -44,19 +42,6 @@ type NamespaceReconciler struct {
 	Scheme *runtime.Scheme
 	mu     sync.Mutex
 }
-
-const (
-	// move a namespace into a argocd appproj using the label.
-	// for example argocd.snappcloud.io/appproj: snapppay means snapppay argo project
-	// can deploy resources into the labeled namespace.
-	ProjectsLabel = "argocd.snappcloud.io/appproj"
-	// namespace can host argo application for the argocd appproj using the label.
-	// for example argocd.snappcloud.io/source: snapppay means argo applications
-	// in the labeled namespace can belongs to the snapppay argo project.
-	SourceLabel = "argocd.snappcloud.io/source"
-
-	baseNs = "user-argocd"
-)
 
 type SafeNsCache struct {
 	lock        sync.Mutex
@@ -177,7 +162,7 @@ func (c *SafeNsCache) InitOrPass(r *NamespaceReconciler, ctx context.Context) er
 	c.sources = make(map[string]nameset.Nameset[string])
 
 	if err := r.List(ctx, appProjList,
-		&client.ListOptions{Namespace: baseNs},
+		&client.ListOptions{Namespace: userArgocdNS},
 	); err != nil {
 		return err
 	}
@@ -192,13 +177,6 @@ func (c *SafeNsCache) InitOrPass(r *NamespaceReconciler, ctx context.Context) er
 	}
 
 	return nil
-}
-
-var NamespaceCache = &SafeNsCache{
-	lock:        sync.Mutex{},
-	projects:    nil,
-	namespaces:  nil,
-	initialized: false,
 }
 
 //+kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch;create;update;patch;delete
@@ -238,10 +216,8 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 				for _, t := range oldTeams {
 					if err := r.reconcileAppProject(ctx, logger, t); err != nil {
 						logger.Error(err, "failed to reconcile appproject for not found resource error recovery", "name", t)
-
 						continue
 					}
-
 					logger.Info("successfully reconciled appproject for not found resource error recovery", "name", t)
 				}
 			}
@@ -331,122 +307,6 @@ func (r *NamespaceReconciler) Reconcile(ctx context.Context, req ctrl.Request) (
 	return ctrl.Result{}, reconciliationErrors.ErrorOrNil()
 }
 
-// reconcileAppProject create an argocd project and change the current argocd project to be compatible with it.
-// it is called everytime a label changed, so when you remove a policy or etc it will not be called.
-func (r *NamespaceReconciler) reconcileAppProject(ctx context.Context, logger logr.Logger, team string) error {
-	appProj := r.createAppProj(team)
-
-	// Check if AppProj does not exist and create a new one
-	found := &argov1alpha1.AppProject{}
-	if err := r.Get(ctx, types.NamespacedName{Name: team, Namespace: baseNs}, found); err != nil {
-		if errors.IsNotFound(err) {
-			logger.Info("creating argocd appproject", "team", appProj.Name, "sources", appProj.Spec.SourceNamespaces)
-
-			if err := r.Create(ctx, appProj); err != nil {
-				return fmt.Errorf("error creating AppProj: %w", err)
-			}
-
-			return nil
-		} else {
-			return fmt.Errorf("error getting AppProj: %w", err)
-		}
-	}
-
-	appProj.Spec.SourceRepos = appendRepos(appProj.Spec.SourceRepos, found.Spec.SourceRepos)
-
-	// If AppProj already exist, check if it is deeply equal with desrired state
-	if !reflect.DeepEqual(appProj.Spec, found.Spec) {
-		logger.Info("Founded AppProj is not equad to desired one, doing the upgrade", "AppProj.Name", team)
-
-		found.Spec = appProj.Spec
-
-		if err := r.Update(ctx, found); err != nil {
-			return fmt.Errorf("error updating AppProj: %v", err)
-		}
-	}
-
-	return nil
-}
-
-func (r *NamespaceReconciler) createAppProj(team string) *argov1alpha1.AppProject {
-	desiredNamespaces := NamespaceCache.GetNamespaces(team)
-
-	destinations := []argov1alpha1.ApplicationDestination{}
-
-	for _, desiredNamespace := range desiredNamespaces {
-		destinations = append(destinations, argov1alpha1.ApplicationDestination{
-			Namespace: desiredNamespace,
-			Server:    "*",
-		})
-	}
-
-	sources := NamespaceCache.GetSources(team)
-
-	// Get public repos
-	repo_env := os.Getenv("PUBLIC_REPOS")
-	repo_list := strings.Split(repo_env, ",")
-
-	// Get cluster scoped teams
-	team_env := os.Getenv("CLUSTER_ADMIN_TEAMS")
-	team_list := strings.Split(team_env, ",")
-
-	includeAllGroupKind := []metav1.GroupKind{
-		{
-			Group: "*",
-			Kind:  "*",
-		},
-	}
-
-	appProj := &argov1alpha1.AppProject{
-		ObjectMeta: metav1.ObjectMeta{
-			Name:      team,
-			Namespace: baseNs,
-		},
-		Spec: argov1alpha1.AppProjectSpec{
-			SourceRepos:      repo_list,
-			Destinations:     destinations,
-			SourceNamespaces: sources,
-			NamespaceResourceBlacklist: []metav1.GroupKind{
-				{
-					Group: "",
-					Kind:  "LimitRange",
-				},
-			},
-			Roles: []argov1alpha1.ProjectRole{
-				{
-					Groups: []string{team + "-admin", team + "-admin" + "-ci"},
-					Name:   team + "-admin",
-					Policies: []string{
-						"p, proj:" + team + ":" + team + "-admin, applications, *, " + team + "/*, allow",
-						"p, proj:" + team + ":" + team + "-admin, repositories, *, " + team + "/*, allow",
-						"p, proj:" + team + ":" + team + "-admin, exec, create, " + team + "/*, allow",
-						// TODO: The log get action shouldbe available as we add team-view to the admin in `AddArgocdRBACPolicy` function.
-						// But it doesn't work!
-						"p, proj:" + team + ":" + team + "-admin, logs, get, " + team + "/*, allow",
-					},
-				},
-				{
-					Groups: []string{team + "-view", team + "-view" + "-ci"},
-					Name:   team + "-view",
-					Policies: []string{
-						"p, proj:" + team + ":" + team + "-view, applications, get, " + team + "/*, allow",
-						"p, proj:" + team + ":" + team + "-view, repositories, get, " + team + "/*, allow",
-						"p, proj:" + team + ":" + team + "-view, logs, get, " + team + "/*, allow",
-					},
-				},
-			},
-		},
-	}
-
-	if isTeamClusterAdmin(team, team_list) {
-		appProj.Spec.ClusterResourceWhitelist = includeAllGroupKind
-	} else {
-		appProj.Spec.ClusterResourceBlacklist = includeAllGroupKind
-	}
-
-	return appProj
-}
-
 // SetupWithManager sets up the controller with the Manager.
 func (r *NamespaceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
@@ -454,20 +314,39 @@ func (r *NamespaceReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Complete(r)
 }
 
-// Compare source repos and public repos
-func appendRepos(repo_list []string, found_repos []string) []string {
-	check := make(map[string]bool)
-	mixrepos := append(repo_list, found_repos...)
-	res := make([]string, 0)
-	for _, repo := range mixrepos {
-		check[repo] = true
+// reconcileAppProject create an argocd project and change the current argocd project to be compatible with it.
+// it is called everytime a label changed, so when you remove a policy or etc it will not be called.
+func (r *NamespaceReconciler) reconcileAppProject(ctx context.Context, logger logr.Logger, team string) error {
+	appProj := createAppProj(team)
+
+	// Check if AppProject does not exist and create a new one
+	found := &argov1alpha1.AppProject{}
+	if err := r.Get(ctx, types.NamespacedName{Name: team, Namespace: userArgocdNS}, found); err != nil {
+		if errors.IsNotFound(err) {
+			logger.Info("AppProject not found, skipping update (will be created by ArgocdUser)", "AppProject", team)
+			return nil
+		} else {
+			return fmt.Errorf("Error getting AppProject: %w", err)
+		}
 	}
 
-	for repo := range check {
-		res = append(res, repo)
+	// If AppProject already exist, check if it is deeply equal with desrired state on destinations and source namespaces
+	if !reflect.DeepEqual(appProj.Spec.Destinations, found.Spec.Destinations) {
+		logger.Info("Found AppProject Destinations is not equad to desired one, doing the upgrade", "AppProject", team)
+		found.Spec.Destinations = appProj.Spec.Destinations
+		if err := r.Update(ctx, found); err != nil {
+			return fmt.Errorf("Error updating AppProject: %v", err)
+		}
+	}
+	if !reflect.DeepEqual(appProj.Spec.SourceNamespaces, found.Spec.SourceNamespaces) {
+		logger.Info("Founded AppProject SourceNamespaces is not equad to desired one, doing the upgrade", "AppProject", team)
+		found.Spec.SourceNamespaces = appProj.Spec.SourceNamespaces
+		if err := r.Update(ctx, found); err != nil {
+			return fmt.Errorf("Error updating AppProject: %v", err)
+		}
 	}
 
-	return res
+	return nil
 }
 
 // labelToProjects will convert period separated label value to actual nameset.
@@ -485,13 +364,4 @@ func labelToProjects(l string) nameset.Nameset[string] {
 	}
 
 	return result
-}
-
-func isTeamClusterAdmin(team string, clusterAdminList []string) bool {
-	for _, tm := range clusterAdminList {
-		if team == tm {
-			return true
-		}
-	}
-	return false
 }
