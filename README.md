@@ -119,7 +119,7 @@ export IMG=ghcr.io/your-repo-path/image-name:latest
 
 ### Reporting security vulnerabilities
 
-If you find a security vulnerability or any security related issues, please DO NOT file a public issue, instead send your report privately to cloud@snapp.cab. Security reports are greatly appreciated and we will publicly thank you for it.
+If you find a security vulnerability or any security related issues, please DO NOT file a public issue, instead send your report privately to <cloud@snapp.cab>. Security reports are greatly appreciated and we will publicly thank you for it.
 
 ## License
 

@@ -57,9 +57,10 @@ type ArgocdUserReconciler struct {
 //+kubebuilder:rbac:groups=argocd.snappcloud.io,resources=argocdusers/finalizers,verbs=update
 //+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=user.openshift.io,resources=*,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=user.openshift.io,resources=groups,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterroles,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=rbac.authorization.k8s.io,resources=clusterrolebindings,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=argoproj.io,resources=appprojects,verbs=get;list;watch;create;update;patch;delete
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the clus k8s.io/api closer to the desired state.
@@ -77,7 +78,7 @@ func (r *ArgocdUserReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	logger := log.FromContext(ctx)
 	logger.Info("Reconciling ArgocdUser", "request", req.NamespacedName)
 
-	argocduserName := req.NamespacedName.Name
+	argocduserName := req.Name
 	argocduser := &argocduserv1alpha1.ArgocdUser{}
 	if err := r.Get(ctx, req.NamespacedName, argocduser); err != nil {
 		if errors.IsNotFound(err) {
@@ -89,7 +90,7 @@ func (r *ArgocdUserReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 	}
 	// Check if the ArgocdUser is being deleted
-	if !argocduser.ObjectMeta.DeletionTimestamp.IsZero() {
+	if !argocduser.DeletionTimestamp.IsZero() {
 		// ArgocdUser is being deleted
 		if controllerutil.ContainsFinalizer(argocduser, argocdUserFinalizer) {
 			// Run cleanup logic
@@ -219,7 +220,7 @@ func (r *ArgocdUserReconciler) reconcileClusterRoleBinding(ctx context.Context, 
 
 	// TODO: Update to use specific label with the corresponding `Argocduser` name, for watching and tracking
 	// Build subjects from admin users
-	var subjects []rbacv1.Subject
+	subjects := make([]rbacv1.Subject, 0, len(argocduser.Spec.Admin.Users))
 	for _, user := range argocduser.Spec.Admin.Users {
 		subjects = append(subjects, rbacv1.Subject{
 			Kind:     "User",
@@ -361,7 +362,7 @@ func (r *ArgocdUserReconciler) reconcileAppProject(ctx context.Context, argocdus
 	if needsUpdate {
 		logger.Info("Updating AppProject", "AppProject", appProjectName)
 		if err := r.Update(ctx, found); err != nil {
-			return fmt.Errorf("Error updating AppProject %s: %v", appProjectName, err)
+			return fmt.Errorf("error updating AppProject %s: %v", appProjectName, err)
 		}
 	} else {
 		logger.Info("AppProject is up to date, no changes needed", "AppProject", appProjectName)
@@ -413,11 +414,14 @@ func (r *ArgocdUserReconciler) UpdateUserArgocdConfig(ctx context.Context, argoc
 	hash, err := hashPassword(ciPass) // ignore error for the sake of simplicity
 	if err != nil {
 		logger.Error(err, "Failed to hash ciPassword", "Argocduser-role", argocduser.Name+roleName)
-		return err
+		return fmt.Errorf("password hashing failed: %w", err)
 	}
 
+	// Validate hash is not empty
+	if hash == "" {
+		return fmt.Errorf("password hash is empty for user %s role %s", argocduser.Name, roleName)
+	}
 	encodedPass := b64.StdEncoding.EncodeToString([]byte(hash))
-
 	staticPassword := map[string]map[string]string{
 		"data": {
 			"accounts." + argocduser.Name + "-" + roleName + "-ci.password": encodedPass,

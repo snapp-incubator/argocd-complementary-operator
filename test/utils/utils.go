@@ -105,7 +105,7 @@ func InstallCertManager() error {
 
 // LoadImageToKindCluster loads a local docker image to the kind cluster
 func LoadImageToKindClusterWithName(name string) error {
-	var cmd = &exec.Cmd{}
+	var cmd *exec.Cmd
 	cluster := "kind"
 	if v, ok := os.LookupEnv("KIND_CLUSTER"); ok {
 		cluster = v

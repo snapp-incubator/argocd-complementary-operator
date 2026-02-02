@@ -243,7 +243,7 @@ func TestFilter_EarlyBreak(t *testing.T) {
 	}
 
 	count := 0
-	for _ = range nm.Filter(filter) {
+	for range nm.Filter(filter) {
 		count++
 		if count == 2 {
 			break // This makes yield return false, for coverage

@@ -32,8 +32,6 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-var ()
-
 var _ = Describe("Argocduser controller", func() {
 	logger := logf.FromContext(ctx)
 	// Creating AppProj as soon as we create an argocduser object
@@ -82,7 +80,7 @@ var _ = Describe("Argocduser controller", func() {
 		It("Should create & verify the corresponding ClusterRoleBinding", func() {
 			By("Verifying test-au-argocduser-clusterrolebinding ClusterRoleBinding is created")
 			expectedRoleRefName := testAuName + "-argocduser-clusterrole"
-			expectedSubjects := []rbacv1.Subject{}
+			expectedSubjects := make([]rbacv1.Subject, 0, len(testAuAdminUsers))
 			for _, user := range testAuAdminUsers {
 				expectedSubjects = append(expectedSubjects, rbacv1.Subject{
 					Kind:     "User",
@@ -501,7 +499,7 @@ var _ = Describe("Argocduser controller", func() {
 			crb := &rbacv1.ClusterRoleBinding{}
 			lookup := types.NamespacedName{Name: updateAuName + "-argocduser-clusterrolebinding"}
 
-			expectedSubjects := []rbacv1.Subject{}
+			expectedSubjects := make([]rbacv1.Subject, 0, len(newAdminUsers))
 			for _, user := range newAdminUsers {
 				expectedSubjects = append(expectedSubjects, rbacv1.Subject{
 					Kind:     "User",

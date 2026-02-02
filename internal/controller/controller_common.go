@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"fmt"
 	"os"
 	"strings"
 	"sync"
@@ -46,8 +47,7 @@ func isTeamClusterAdmin(team string, clusterAdminList []string) bool {
 
 func createAppProj(team string) *argov1alpha1.AppProject {
 	desiredNamespaces := NamespaceCache.GetNamespaces(team)
-
-	destinations := []argov1alpha1.ApplicationDestination{}
+	destinations := make([]argov1alpha1.ApplicationDestination, 0, len(desiredNamespaces))
 
 	for _, desiredNamespace := range desiredNamespaces {
 		destinations = append(destinations, argov1alpha1.ApplicationDestination{
@@ -126,7 +126,17 @@ func createAppProj(team string) *argov1alpha1.AppProject {
 }
 
 func hashPassword(password string) (string, error) {
+	if len(password) > 72 {
+		return "", fmt.Errorf("password exceeds bcrypt maximum length of 72 bytes")
+	}
+	// TODO: Apply this
+	// if len(password) < 8 {
+	// 	return "", fmt.Errorf("password must be at least 8 characters")
+	// }
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)
+	if err != nil {
+		return "", fmt.Errorf("bcrypt failed: %w", err)
+	}
 	return string(bytes), err
 }
 

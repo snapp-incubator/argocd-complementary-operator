@@ -105,7 +105,7 @@ func (c *SafeNsCache) GetProjects(ns string) []string {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	r := make([]string, 0)
+	r := make([]string, 0, c.projects[ns].Len())
 
 	for k := range c.projects[ns].All() {
 		r = append(r, k)
@@ -120,8 +120,7 @@ func (c *SafeNsCache) GetNamespaces(proj string) []string {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	r := make([]string, 0)
-
+	r := make([]string, 0, c.namespaces[proj].Len())
 	for k := range c.namespaces[proj].All() {
 		r = append(r, k)
 	}
@@ -135,7 +134,7 @@ func (c *SafeNsCache) GetSources(proj string) []string {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	r := make([]string, 0)
+	r := make([]string, 0, len(c.sources))
 
 	for k, v := range c.sources {
 		if v.Contains(proj) {
@@ -179,10 +178,9 @@ func (c *SafeNsCache) InitOrPass(r *NamespaceReconciler, ctx context.Context) er
 	return nil
 }
 
-//+kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch
 //+kubebuilder:rbac:groups=core,resources=namespaces/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=core,resources=namespaces/finalizers,verbs=update
-//+kubebuilder:rbac:groups=argoproj.io,resources=appprojects,verbs=get;list;watch;create;update;patch
 
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
@@ -326,7 +324,7 @@ func (r *NamespaceReconciler) reconcileAppProject(ctx context.Context, logger lo
 			logger.Info("AppProject not found, skipping update (will be created by ArgocdUser)", "AppProject", team)
 			return nil
 		} else {
-			return fmt.Errorf("Error getting AppProject: %w", err)
+			return fmt.Errorf("error getting AppProject: %w", err)
 		}
 	}
 
@@ -335,14 +333,14 @@ func (r *NamespaceReconciler) reconcileAppProject(ctx context.Context, logger lo
 		logger.Info("Found AppProject Destinations is not equad to desired one, doing the upgrade", "AppProject", team)
 		found.Spec.Destinations = appProj.Spec.Destinations
 		if err := r.Update(ctx, found); err != nil {
-			return fmt.Errorf("Error updating AppProject: %v", err)
+			return fmt.Errorf("error updating AppProject: %v", err)
 		}
 	}
 	if !reflect.DeepEqual(appProj.Spec.SourceNamespaces, found.Spec.SourceNamespaces) {
 		logger.Info("Founded AppProject SourceNamespaces is not equad to desired one, doing the upgrade", "AppProject", team)
 		found.Spec.SourceNamespaces = appProj.Spec.SourceNamespaces
 		if err := r.Update(ctx, found); err != nil {
-			return fmt.Errorf("Error updating AppProject: %v", err)
+			return fmt.Errorf("error updating AppProject: %v", err)
 		}
 	}
 

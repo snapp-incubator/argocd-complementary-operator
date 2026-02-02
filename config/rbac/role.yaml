@@ -8,7 +8,6 @@ rules:
   - ""
   resources:
   - configmaps
-  - namespaces
   - secrets
   verbs:
   - create
@@ -17,6 +16,14 @@ rules:
   - list
   - patch
   - update
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - namespaces
+  verbs:
+  - get
+  - list
   - watch
 - apiGroups:
   - ""
@@ -64,6 +71,7 @@ rules:
   - appprojects
   verbs:
   - create
+  - delete
   - get
   - list
   - patch
@@ -85,7 +93,7 @@ rules:
 - apiGroups:
   - user.openshift.io
   resources:
-  - '*'
+  - groups
   verbs:
   - create
   - delete
