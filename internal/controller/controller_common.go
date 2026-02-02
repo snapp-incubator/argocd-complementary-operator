@@ -16,7 +16,7 @@ const (
 	userArgocdNS           = "user-argocd"
 	userArgocdStaticUserCM = "argocd-cm"
 	userArgocdSecret       = "argocd-secret"
-	argocdUserFinalizer    = "snappcloud.io/argocd-complementary-operator"
+	argocdUserFinalizer    = "argocd.snappcloud.io/finalizer"
 
 	// move a namespace into a argocd appproj using the label.
 	// for example argocd.snappcloud.io/appproj: snapppay means snapppay argo project

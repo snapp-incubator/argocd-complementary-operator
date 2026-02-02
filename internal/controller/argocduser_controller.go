@@ -82,9 +82,36 @@ func (r *ArgocdUserReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	if err := r.Get(ctx, req.NamespacedName, argocduser); err != nil {
 		if errors.IsNotFound(err) {
 			logger.Error(err, "ArgocdUser not found", "request", req.NamespacedName)
-			return ctrl.Result{}, err
+			return ctrl.Result{}, nil
 		} else {
 			logger.Error(err, "Failed to get ArgocdUser")
+			return ctrl.Result{}, err
+		}
+	}
+	// Check if the ArgocdUser is being deleted
+	if !argocduser.ObjectMeta.DeletionTimestamp.IsZero() {
+		// ArgocdUser is being deleted
+		if controllerutil.ContainsFinalizer(argocduser, argocdUserFinalizer) {
+			// Run cleanup logic
+			if err := r.cleanupResources(ctx, argocduser); err != nil {
+				logger.Error(err, "Failed to cleanup resources")
+				return ctrl.Result{}, err
+			}
+
+			// Remove the finalizer
+			controllerutil.RemoveFinalizer(argocduser, argocdUserFinalizer)
+			if err := r.Update(ctx, argocduser); err != nil {
+				logger.Error(err, "Failed to remove finalizer")
+				return ctrl.Result{}, err
+			}
+		}
+		return ctrl.Result{}, nil
+	}
+	// Add finalizer if not present (for new resources)
+	if !controllerutil.ContainsFinalizer(argocduser, argocdUserFinalizer) {
+		controllerutil.AddFinalizer(argocduser, argocdUserFinalizer)
+		if err := r.Update(ctx, argocduser); err != nil {
+			logger.Error(err, "Failed to add finalizer")
 			return ctrl.Result{}, err
 		}
 	}
@@ -458,6 +485,111 @@ func (r *ArgocdUserReconciler) AddArgoUsersToGroup(ctx context.Context, argocdus
 	} else {
 		logger.Info("Group users already up to date, skipping update", "Group", groupName)
 	}
+	return nil
+}
+
+func (r *ArgocdUserReconciler) cleanupResources(ctx context.Context, argocduser *argocduserv1alpha1.ArgocdUser) error {
+	logger := log.FromContext(ctx)
+	name := argocduser.Name
+
+	// 1. Delete AppProject
+	if err := r.deleteAppProject(ctx, name); err != nil {
+		return err
+	}
+
+	// 2. Remove ConfigMap entries
+	if err := r.removeConfigMapEntries(ctx, name); err != nil {
+		return err
+	}
+
+	// 3. Remove Secret entries
+	if err := r.removeSecretEntries(ctx, name); err != nil {
+		return err
+	}
+
+	// 4. Delete Groups (if registered)
+	// if err := r.deleteGroups(ctx, name); err != nil {
+	//     return err
+	// }
+
+	logger.Info("Successfully cleaned up all resources", "ArgocdUser", name)
+	return nil
+}
+
+func (r *ArgocdUserReconciler) deleteAppProject(ctx context.Context, name string) error {
+	logger := log.FromContext(ctx)
+	appProj := &argov1alpha1.AppProject{}
+	err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: userArgocdNS}, appProj)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			// AppProj doesn't exist, nothing to clean up
+			return nil
+		}
+		return err
+	}
+	// Already being deleted, nothing to do
+	if !appProj.DeletionTimestamp.IsZero() {
+		logger.Info("AppProject already being deleted", "AppProject", name)
+		return nil
+	}
+
+	if err := r.Delete(ctx, appProj); err != nil {
+		if errors.IsNotFound(err) {
+			// Deleted between Get and Delete - that's fine
+			return nil
+		}
+		logger.Error(err, "Failed to remove AppProject", "AppProject", name)
+		return err
+	}
+	logger.Info("Removed AppProject", "AppProject", name)
+	return nil
+}
+
+func (r *ArgocdUserReconciler) removeConfigMapEntries(ctx context.Context, name string) error {
+	logger := log.FromContext(ctx)
+	configMap := &corev1.ConfigMap{}
+	err := r.Get(ctx, types.NamespacedName{Name: userArgocdStaticUserCM, Namespace: userArgocdNS}, configMap)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			// ConfigMap doesn't exist, nothing to clean up
+			return nil
+		}
+		return err
+	}
+
+	patch := client.MergeFrom(configMap.DeepCopy())
+	// Delete both admin and view accounts
+	delete(configMap.Data, "accounts."+name+"-admin-ci")
+	delete(configMap.Data, "accounts."+name+"-view-ci")
+
+	if err := r.Patch(ctx, configMap, patch); err != nil {
+		logger.Error(err, "Failed to remove accounts from ConfigMap", "ArgocdUser", name)
+		return err
+	}
+	logger.Info("Removed accounts from ConfigMap", "ArgocdUser", name)
+	return nil
+}
+
+func (r *ArgocdUserReconciler) removeSecretEntries(ctx context.Context, name string) error {
+	logger := log.FromContext(ctx)
+	secret := &corev1.Secret{}
+	err := r.Get(ctx, types.NamespacedName{Name: userArgocdSecret, Namespace: userArgocdNS}, secret)
+	if err != nil {
+		if errors.IsNotFound(err) {
+			return nil
+		}
+		return err
+	}
+
+	secretPatch := client.MergeFrom(secret.DeepCopy())
+	delete(secret.Data, "accounts."+name+"-admin-ci.password")
+	delete(secret.Data, "accounts."+name+"-view-ci.password")
+
+	if err := r.Patch(ctx, secret, secretPatch); err != nil {
+		logger.Error(err, "Failed to remove passwords from Secret", "ArgocdUser", name)
+		return err
+	}
+	logger.Info("Removed passwords from Secret", "ArgocdUser", name)
 	return nil
 }
 

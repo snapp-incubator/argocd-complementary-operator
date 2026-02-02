@@ -29,6 +29,7 @@ import (
 	"go.uber.org/zap/zapcore"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
+	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/kubernetes/scheme"
@@ -52,7 +53,6 @@ const (
 	timeout      = time.Second * 30
 	interval     = time.Millisecond * 100
 	argocdAppsNs = "user-argocd"
-	testAuName   = "test-au"
 )
 
 var (
@@ -60,11 +60,7 @@ var (
 	testEnv   *envtest.Environment
 	cancel    context.CancelFunc
 
-	ctx               = context.Background()
-	testAuAdminCIPass = "some_admin_pass"
-	testAuViewCIPass  = "some_view_pass"
-	testAuAdminUsers  = []string{"admin-a", "admin-b"}
-	testAuviewUsers   = []string{"view-a", "view-b"}
+	ctx = context.Background()
 )
 
 func TestAPIs(t *testing.T) {
@@ -195,3 +191,29 @@ var _ = AfterSuite(func() {
 	err := testEnv.Stop()
 	Expect(err).NotTo(HaveOccurred())
 })
+
+// ensureArgocdUserExists creates the ArgocdUser if it doesn't exist, or returns the existing one
+func ensureArgocdUserExists(ctx context.Context, name string, spec argocduserv1alpha1.ArgocdUserSpec) *argocduserv1alpha1.ArgocdUser {
+	au := &argocduserv1alpha1.ArgocdUser{}
+	err := k8sClient.Get(ctx, types.NamespacedName{Name: name}, au)
+
+	if err == nil {
+		// Already exists, return it
+		return au
+	}
+
+	if !errors.IsNotFound(err) {
+		// Unexpected error
+		Expect(err).NotTo(HaveOccurred())
+	}
+
+	// Doesn't exist, create it
+	au = &argocduserv1alpha1.ArgocdUser{
+		ObjectMeta: metav1.ObjectMeta{
+			Name: name,
+		},
+		Spec: spec,
+	}
+	Expect(k8sClient.Create(ctx, au)).Should(Succeed())
+	return au
+}
