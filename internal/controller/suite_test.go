@@ -67,10 +67,9 @@ func TestAPIs(t *testing.T) {
 	RegisterFailHandler(Fail)
 	suiteConfig, reporterConfig := GinkgoConfiguration()
 	// reporterConfig.Verbose = true // Enable verbose output
-	reporterConfig.VeryVerbose = true    // Enable very verbose output
-	reporterConfig.FullTrace = true      // Show full stack traces
-	reporterConfig.ShowNodeEvents = true // Show node lifecycle events
-
+	// reporterConfig.VeryVerbose = true    // Enable very verbose output
+	// reporterConfig.FullTrace = true      // Show full stack traces
+	// reporterConfig.ShowNodeEvents = true // Show node lifecycle events
 	RunSpecs(t, "Controller Suite", suiteConfig, reporterConfig)
 }
 
