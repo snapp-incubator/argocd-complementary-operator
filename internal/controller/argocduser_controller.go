@@ -637,7 +637,7 @@ func (r *ArgocdUserReconciler) removeSecretEntries(ctx context.Context, name str
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ArgocdUserReconciler) SetupWithManager(mgr ctrl.Manager) error {
-	r.GroupCRDInstalled = isCRDInstalled(gvk)
+	r.GroupCRDInstalled = isCRDInstalled(mgr.GetConfig(), gvk)
 
 	builder := ctrl.NewControllerManagedBy(mgr).
 		For(&argocduserv1alpha1.ArgocdUser{}).

@@ -14,7 +14,7 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime/schema"
 	"k8s.io/client-go/discovery"
-	ctrl "sigs.k8s.io/controller-runtime"
+	"k8s.io/client-go/rest"
 )
 
 const (
@@ -40,8 +40,7 @@ var NamespaceCache = &SafeNsCache{
 	initialized: false,
 }
 
-func isCRDInstalled(gvk schema.GroupVersionKind) bool {
-	cfg := ctrl.GetConfigOrDie()
+func isCRDInstalled(cfg *rest.Config, gvk schema.GroupVersionKind) bool {
 	discoveryClient, err := discovery.NewDiscoveryClientForConfig(cfg)
 	if err != nil {
 		return false
