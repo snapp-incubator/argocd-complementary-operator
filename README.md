@@ -163,6 +163,7 @@ make docker-push   # Push to registry
 
 ```bash
 make run      # Run locally (for development)
+make install  # Install CRDs
 make deploy   # Deploy to Kubernetes
 ```
 

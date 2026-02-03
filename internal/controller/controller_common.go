@@ -81,13 +81,27 @@ func createAppProj(team string) *argov1alpha1.AppProject {
 
 	sources := NamespaceCache.GetSources(team)
 
+	// Split string variables by separator, prevent empty strings as result.
+	splitNonEmpty := func(s, sep string) []string {
+		if s == "" {
+			return nil
+		}
+		var result []string
+		for _, item := range strings.Split(s, sep) {
+			if trimmed := strings.TrimSpace(item); trimmed != "" {
+				result = append(result, trimmed)
+			}
+		}
+		return result
+	}
+
 	// Get public repos
 	repo_env := os.Getenv("PUBLIC_REPOS")
-	repo_list := strings.Split(repo_env, ",")
+	repo_list := splitNonEmpty(repo_env, ",")
 
 	// Get cluster scoped teams
 	team_env := os.Getenv("CLUSTER_ADMIN_TEAMS")
-	team_list := strings.Split(team_env, ",")
+	team_list := splitNonEmpty(team_env, ",")
 
 	includeAllGroupKind := []metav1.GroupKind{
 		{
@@ -153,7 +167,7 @@ func hashPassword(password string) (string, error) {
 		return "", fmt.Errorf("password exceeds bcrypt maximum length of 72 bytes")
 	}
 	// TODO: Apply this
-	// if len(password) < 8 {
+	// if len(password) < 8 && len(password) != 0 {
 	// 	return "", fmt.Errorf("password must be at least 8 characters")
 	// }
 	bytes, err := bcrypt.GenerateFromPassword([]byte(password), 14)

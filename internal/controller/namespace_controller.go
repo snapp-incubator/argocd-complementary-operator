@@ -67,8 +67,9 @@ func (c *SafeNsCache) TrustSource(ns, proj string) {
 func (c *SafeNsCache) UnTrustSource(ns, proj string) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
-
-	c.sources[ns].Remove(proj)
+	if nset, ok := c.sources[ns]; ok {
+		nset.Remove(proj)
+	}
 }
 
 // JoinProject will add given namespace into given project.
@@ -95,8 +96,12 @@ func (c *SafeNsCache) LeaveProject(ns, proj string) {
 	c.lock.Lock()
 	defer c.lock.Unlock()
 
-	c.projects[ns].Remove(proj)
-	c.namespaces[proj].Remove(ns)
+	if nset, ok := c.projects[ns]; ok {
+		nset.Remove(proj)
+	}
+	if nset, ok := c.namespaces[proj]; ok {
+		nset.Remove(ns)
+	}
 }
 
 // GetProjects will return projects for given Namespace name. It creates a copy
@@ -329,6 +334,8 @@ func (r *NamespaceReconciler) reconcileAppProject(ctx context.Context, logger lo
 	}
 
 	// If AppProject already exist, check if it is deeply equal with desrired state on destinations and source namespaces
+	needsUpdate := false
+
 	var bothEmpty bool
 	// First, we check length to prevent considering nil and [] as not equal in reflect.DeepEqual
 	bothEmpty = (len(found.Spec.Destinations) == 0 && len(appProj.Spec.Destinations) == 0)
@@ -337,20 +344,28 @@ func (r *NamespaceReconciler) reconcileAppProject(ctx context.Context, logger lo
 		logger.Info("Found AppProject Destinations is not equad to desired one, doing the upgrade", "AppProject", team)
 		logger.Info("Destinations differ", "existing", found.Spec.Destinations, "desired", appProj.Spec.Destinations)
 		found.Spec.Destinations = appProj.Spec.Destinations
-		if err := r.Update(ctx, found); err != nil {
-			return fmt.Errorf("error updating AppProject: %v", err)
-		}
+		needsUpdate = true
 	}
+
 	// First, we check length to prevent considering nil and [] as not equal in reflect.DeepEqual
 	bothEmpty = (len(found.Spec.SourceNamespaces) == 0 && len(appProj.Spec.SourceNamespaces) == 0)
 	// Then check with reflect.DeepEqual
 	if !bothEmpty && !reflect.DeepEqual(appProj.Spec.SourceNamespaces, found.Spec.SourceNamespaces) {
-		logger.Info("Founded AppProject SourceNamespaces is not equad to desired one, doing the upgrade", "AppProject", team)
+		logger.Info("Found AppProject SourceNamespaces is not equal to desired one, doing the upgrade", "AppProject", team)
 		logger.Info("SourceNamespaces differ", "existing", found.Spec.SourceNamespaces, "desired", appProj.Spec.SourceNamespaces)
 		found.Spec.SourceNamespaces = appProj.Spec.SourceNamespaces
+		needsUpdate = true
+	}
+
+	// Only update if something changed
+	if needsUpdate {
+		logger.Info("Updating AppProject", "AppProject", team)
 		if err := r.Update(ctx, found); err != nil {
-			return fmt.Errorf("error updating AppProject: %v", err)
+			logger.Error(err, "Failed to update AppProject", "AppProject", team)
+			return err
 		}
+	} else {
+		logger.Info("AppProject is up to date, no changes needed", "AppProject", team)
 	}
 
 	return nil

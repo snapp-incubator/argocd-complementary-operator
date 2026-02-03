@@ -54,7 +54,7 @@ type ArgocdUserReconciler struct {
 	GroupCRDInstalled bool
 }
 
-//+kubebuilder:rbac:groups=argocd.snappcloud.io,resources=argocdusers,verbs=get;list;watch;create;update;edit;patch;delete
+//+kubebuilder:rbac:groups=argocd.snappcloud.io,resources=argocdusers,verbs=get;list;watch;create;update;patch;delete
 //+kubebuilder:rbac:groups=argocd.snappcloud.io,resources=argocdusers/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=argocd.snappcloud.io,resources=argocdusers/finalizers,verbs=update
 //+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
@@ -74,9 +74,6 @@ type ArgocdUserReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.9.2/pkg/reconcile
 func (r *ArgocdUserReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	r.mu.Lock()
-	defer r.mu.Unlock()
-
 	logger := log.FromContext(ctx)
 	logger.Info("Reconciling ArgocdUser", "request", req.NamespacedName)
 
@@ -122,12 +119,12 @@ func (r *ArgocdUserReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	}
 
 	if err := r.reconcileClusterRole(ctx, argocduser); err != nil {
-		logger.Error(err, "Failed to reconcile ClusterRole", "Argocduser", argocduser)
+		logger.Error(err, "Failed to reconcile ClusterRole", "ArgocdUser", argocduser)
 		return ctrl.Result{}, err
 	}
 
 	if err := r.reconcileClusterRoleBinding(ctx, argocduser); err != nil {
-		logger.Error(err, "Failed to reconcile ClusterRoleBinding", "Argocduser", argocduser)
+		logger.Error(err, "Failed to reconcile ClusterRoleBinding", "ArgocdUser", argocduser)
 		return ctrl.Result{}, err
 	}
 
@@ -136,13 +133,8 @@ func (r *ArgocdUserReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{}, err
 	}
 
-	if err := r.reconcileArgocdStaticUser(ctx, req, argocduser, "admin", argocduser.Spec.Admin.CIPass, argocduser.Spec.Admin.Users); err != nil {
+	if err := r.reconcileArgocdStaticUser(ctx, argocduser); err != nil {
 		logger.Error(err, "Failed create argocd static user admin")
-		return ctrl.Result{}, err
-	}
-
-	if err := r.reconcileArgocdStaticUser(ctx, req, argocduser, "view", argocduser.Spec.View.CIPass, argocduser.Spec.View.Users); err != nil {
-		logger.Error(err, "Failed create argocd static user view")
 		return ctrl.Result{}, err
 	}
 
@@ -164,13 +156,13 @@ func (r *ArgocdUserReconciler) reconcileClusterRole(ctx context.Context, argocdu
 				APIGroups:     []string{"argocd.snappcloud.io"},
 				Resources:     []string{"argocdusers"},
 				ResourceNames: []string{argocduser.Name},
-				Verbs:         []string{"get", "patch", "update", "edit"},
+				Verbs:         []string{"get", "list", "watch", "patch", "update"},
 			},
 		},
 	}
 	// Set ArgocdUser as the owner of ClusterRole
 	if err := controllerutil.SetControllerReference(argocduser, desiredClusterRole, r.Scheme); err != nil {
-		logger.Error(err, "Failed to set Argocduser as owner reference on ClusterRole ", "Argocduser", argocduser.Name, "ClusterRole", clusterRoleName)
+		logger.Error(err, "Failed to set Argocduser as owner reference on ClusterRole ", "ArgocdUser", argocduser.Name, "ClusterRole", clusterRoleName)
 		return err
 	}
 	// Try to get existing ClusterRole
@@ -192,20 +184,22 @@ func (r *ArgocdUserReconciler) reconcileClusterRole(ctx context.Context, argocdu
 		}
 	}
 
+	needsUpdate := false
 	// Update existing ClusterRole if OwnerReferences differs
 	if !reflect.DeepEqual(existingClusterRole.OwnerReferences, desiredClusterRole.OwnerReferences) {
 		logger.Info("Updating OwnerReferences of ClusterRole", "ClusterRole", clusterRoleName)
 		existingClusterRole.OwnerReferences = desiredClusterRole.OwnerReferences
-		if err := r.Update(ctx, existingClusterRole); err != nil {
-			logger.Error(err, "Failed to update ClusterRole", "ClusterRole", clusterRoleName)
-			return err
-		}
-		logger.Info("Successfully updated OwnerReferences of ClusterRole", "ClusterRole", clusterRoleName)
+		needsUpdate = true
 	}
 	// Update existing ClusterRole if rules differ
 	if !reflect.DeepEqual(existingClusterRole.Rules, desiredClusterRole.Rules) {
-		logger.Info("Updating ClusterRole", "ClusterRole", clusterRoleName)
+		logger.Info("Updating Rules of ClusterRole", "ClusterRole", clusterRoleName)
 		existingClusterRole.Rules = desiredClusterRole.Rules
+		needsUpdate = true
+	}
+	// Only update if something changed
+	if needsUpdate {
+		logger.Info("Updating ClusterRole", "ClusterRole", clusterRoleName)
 		if err := r.Update(ctx, existingClusterRole); err != nil {
 			logger.Error(err, "Failed to update ClusterRole", "ClusterRole", clusterRoleName)
 			return err
@@ -246,7 +240,7 @@ func (r *ArgocdUserReconciler) reconcileClusterRoleBinding(ctx context.Context, 
 
 	// Set ArgocdUser as the owner of ClusterRoleBinding
 	if err := controllerutil.SetControllerReference(argocduser, desiredClusterRoleBinding, r.Scheme); err != nil {
-		logger.Error(err, "Failed to set Argocduser as owner reference on ClusterRoleBinding ", "Argocduser", argocduser.Name, "ClusterRoleBinding", clusterRoleBindingName)
+		logger.Error(err, "Failed to set Argocduser as owner reference on ClusterRoleBinding ", "ArgocdUser", argocduser.Name, "ClusterRoleBinding", clusterRoleBindingName)
 		return err
 	}
 
@@ -268,37 +262,46 @@ func (r *ArgocdUserReconciler) reconcileClusterRoleBinding(ctx context.Context, 
 		return err
 	}
 
+	needsUpdate := false
+	needsRecreate := false
 	// Update existing ClusterRoleBinding if OwnerReferences differ
 	if !reflect.DeepEqual(existingClusterRoleBinding.OwnerReferences, desiredClusterRoleBinding.OwnerReferences) {
 		logger.Info("Updating OwnerReferences of ClusterRoleBinding", "ClusterRoleBinding", clusterRoleBindingName)
 		existingClusterRoleBinding.OwnerReferences = desiredClusterRoleBinding.OwnerReferences
-		if err := r.Update(ctx, existingClusterRoleBinding); err != nil {
-			logger.Error(err, "Failed to update ClusterRoleBinding")
-			return err
-		}
-		logger.Info("Successfully updated OwnerReferences of ClusterRoleBinding", "ClusterRoleBinding", clusterRoleBindingName)
+		needsUpdate = true
 	}
 	// Update existing ClusterRoleBinding if subjects differ
 	if !reflect.DeepEqual(existingClusterRoleBinding.Subjects, desiredClusterRoleBinding.Subjects) {
 		logger.Info("Updating ClusterRoleBinding", "ClusterRoleBinding", clusterRoleBindingName)
 		existingClusterRoleBinding.Subjects = desiredClusterRoleBinding.Subjects
-		if err := r.Update(ctx, existingClusterRoleBinding); err != nil {
-			logger.Error(err, "Failed to update ClusterRoleBinding")
-			return err
-		}
-		logger.Info("Successfully updated ClusterRoleBinding", "ClusterRoleBinding", clusterRoleBindingName)
+		needsUpdate = true
 	}
 	// Update existing ClusterRoleBinding if RoleRef differ
+	// Kubernetes does not allow updating RoleRef on ClusterRoleBindings. It should be recreated.
 	if !reflect.DeepEqual(existingClusterRoleBinding.RoleRef, desiredClusterRoleBinding.RoleRef) {
+		logger.Info("RoleRef changed, ClusterRoleBinding should be recreated", "ClusterRoleBinding", clusterRoleBindingName)
+		needsRecreate = true
+	}
+
+	if needsRecreate {
+		logger.Info("Recreating ClusterRoleBinding", "ClusterRoleBinding", clusterRoleBindingName)
+		if err := r.Delete(ctx, existingClusterRoleBinding); err != nil {
+			logger.Error(err, "Failed to delete ClusterRoleBinding", "ClusterRoleBinding", clusterRoleBindingName)
+			return err
+		}
+		if err := r.Create(ctx, desiredClusterRoleBinding); err != nil {
+			logger.Error(err, "Failed to recreate ClusterRoleBinding", "ClusterRoleBinding", clusterRoleBindingName)
+			return err
+		}
+		logger.Info("Successfully recreated ClusterRoleBinding", "ClusterRoleBinding", clusterRoleBindingName)
+	} else if needsUpdate {
 		logger.Info("Updating ClusterRoleBinding", "ClusterRoleBinding", clusterRoleBindingName)
-		existingClusterRoleBinding.RoleRef = desiredClusterRoleBinding.RoleRef
 		if err := r.Update(ctx, existingClusterRoleBinding); err != nil {
-			logger.Error(err, "Failed to update ClusterRoleBinding")
+			logger.Error(err, "Failed to update ClusterRoleBinding", "ClusterRoleBinding", clusterRoleBindingName)
 			return err
 		}
 		logger.Info("Successfully updated ClusterRoleBinding", "ClusterRoleBinding", clusterRoleBindingName)
 	}
-
 	return nil
 }
 
@@ -339,7 +342,6 @@ func (r *ArgocdUserReconciler) reconcileAppProject(ctx context.Context, argocdus
 	if !bothEmpty && !reflect.DeepEqual(found.Spec.Destinations, desiredAppProject.Spec.Destinations) {
 		logger.Info("Updating AppProject Destinations from Namespaces", "AppProject", appProjectName,
 			"existingCount", len(found.Spec.Destinations), "desiredCount", len(desiredAppProject.Spec.Destinations))
-		logger.Info("Destinations differ", "existing", found.Spec.Destinations, "desired", desiredAppProject.Spec.Destinations)
 		found.Spec.Destinations = desiredAppProject.Spec.Destinations
 		needsUpdate = true
 	}
@@ -350,7 +352,6 @@ func (r *ArgocdUserReconciler) reconcileAppProject(ctx context.Context, argocdus
 	if !bothEmpty && !reflect.DeepEqual(found.Spec.SourceNamespaces, desiredAppProject.Spec.SourceNamespaces) {
 		logger.Info("Updating AppProject SourceNamespaces from NamespaceCache", "AppProject", appProjectName,
 			"existingCount", len(found.Spec.SourceNamespaces), "desiredCount", len(desiredAppProject.Spec.SourceNamespaces))
-		logger.Info("SourceNamespaces differ", "existing", found.Spec.SourceNamespaces, "desired", desiredAppProject.Spec.SourceNamespaces)
 		found.Spec.SourceNamespaces = desiredAppProject.Spec.SourceNamespaces
 		needsUpdate = true
 	}
@@ -370,15 +371,16 @@ func (r *ArgocdUserReconciler) reconcileAppProject(ctx context.Context, argocdus
 	if !bothEmpty && !reflect.DeepEqual(found.Spec.SourceRepos, desiredAppProject.Spec.SourceRepos) {
 		logger.Info("Updating AppProject SourceRepos", "AppProject", appProjectName,
 			"existingCount", len(desiredAppProject.Spec.SourceRepos), "newCount", len(desiredAppProject.Spec.SourceRepos))
-		logger.Info("SourceRepos differ", "existing", found.Spec.SourceRepos, "desired", desiredAppProject.Spec.SourceRepos)
 		found.Spec.SourceRepos = desiredAppProject.Spec.SourceRepos
+		needsUpdate = true
 	}
 
 	// Only update if something changed
 	if needsUpdate {
 		logger.Info("Updating AppProject", "AppProject", appProjectName)
 		if err := r.Update(ctx, found); err != nil {
-			return fmt.Errorf("error updating AppProject %s: %v", appProjectName, err)
+			logger.Error(err, "Failed to update AppProject", "AppProject", appProjectName)
+			return err
 		}
 	} else {
 		logger.Info("AppProject is up to date, no changes needed", "AppProject", appProjectName)
@@ -387,19 +389,25 @@ func (r *ArgocdUserReconciler) reconcileAppProject(ctx context.Context, argocdus
 	return nil
 }
 
-func (r *ArgocdUserReconciler) reconcileArgocdStaticUser(
-	ctx context.Context,
-	_ ctrl.Request,
-	argocduser *argocduserv1alpha1.ArgocdUser,
-	roleName string,
-	ciPass string,
-	argoUsers []string,
-) error {
-	if err := r.UpdateUserArgocdConfig(ctx, argocduser, roleName, ciPass); err != nil {
+func (r *ArgocdUserReconciler) reconcileArgocdStaticUser(ctx context.Context, argocduser *argocduserv1alpha1.ArgocdUser) error {
+	logger := log.FromContext(ctx)
+	// For admin
+	if err := r.UpdateUserArgocdConfig(ctx, argocduser, "admin", argocduser.Spec.Admin.CIPass); err != nil {
+		logger.Error(err, "Failed to create argocd static user configs", "ArgocdUser", argocduser.Name, "role", "admin")
+		return err
+	}
+	if err := r.AddArgoUsersToGroup(ctx, argocduser, "admin", argocduser.Spec.Admin.Users); err != nil {
+		logger.Error(err, "Failed to update OpenShift groups for Argocduser", "ArgocdUser", argocduser.Name, "role", "admin")
 		return err
 	}
 
-	if err := r.AddArgoUsersToGroup(ctx, argocduser, roleName, argoUsers); err != nil {
+	// For view role
+	if err := r.UpdateUserArgocdConfig(ctx, argocduser, "view", argocduser.Spec.View.CIPass); err != nil {
+		logger.Error(err, "Failed to create argocd static user configs", "ArgocdUser", argocduser.Name, "role", "view")
+		return err
+	}
+	if err := r.AddArgoUsersToGroup(ctx, argocduser, "view", argocduser.Spec.View.Users); err != nil {
+		logger.Error(err, "Failed to update OpenShift groups for Argocduser", "ArgocdUser", argocduser.Name, "role", "view")
 		return err
 	}
 
@@ -407,6 +415,9 @@ func (r *ArgocdUserReconciler) reconcileArgocdStaticUser(
 }
 
 func (r *ArgocdUserReconciler) UpdateUserArgocdConfig(ctx context.Context, argocduser *argocduserv1alpha1.ArgocdUser, roleName string, ciPass string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
 	logger := log.FromContext(ctx)
 
 	// Reconcile argocd-cm
@@ -480,6 +491,8 @@ func (r *ArgocdUserReconciler) UpdateUserArgocdConfig(ctx context.Context, argoc
 }
 
 func (r *ArgocdUserReconciler) AddArgoUsersToGroup(ctx context.Context, argocduser *argocduserv1alpha1.ArgocdUser, roleName string, argoUsers []string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	logger := log.FromContext(ctx)
 
 	// Check if Group CRD is registered in the scheme, to ignore this in integration tests

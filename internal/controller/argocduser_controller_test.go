@@ -60,7 +60,7 @@ var _ = Describe("Argocduser controller", func() {
 		It("Should create & verify the corresponding ClusterRole", func() {
 			By("Verifying test-au-argocduser-clusterrole ClusterRole is created")
 			expectedRules := []rbacv1.PolicyRule{{
-				Verbs:         []string{"get", "patch", "update", "edit"},
+				Verbs:         []string{"get", "list", "watch", "patch", "update"},
 				Resources:     []string{"argocdusers"},
 				APIGroups:     []string{"argocd.snappcloud.io"},
 				ResourceNames: []string{testAuName},
@@ -294,7 +294,7 @@ var _ = Describe("Argocduser controller", func() {
 				}, &argov1alpha1.AppProject{})
 			}, timeout, interval).Should(Succeed())
 		})
-		It("Should delete & verify the ArgocdUser is delete", func() {
+		It("Should delete & verify the ArgocdUser is deleted", func() {
 			By("Deleting ArgocdUser")
 			Expect(k8sClient.Delete(ctx, deleteAu)).Should(Succeed())
 
