@@ -1,3 +1,27 @@
 # More info: https://docs.docker.com/engine/reference/builder/#dockerignore-file
-# Ignore build and test binaries.
+
+.claude
+.github
+.gitignore
+.dockerignore
+.golangci.yml
+.env
+.vscode
+**/*_test.go
 bin/
+build
+dist
+test
+hack
+deployments
+Dockerfile
+Dockerfile*
+Makefile
+PROJECT
+*.md
+*.out
+.DS_Store
+*.swp
+*.swo
+*.bak
+*.log

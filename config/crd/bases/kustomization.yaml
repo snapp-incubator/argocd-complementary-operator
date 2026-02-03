@@ -1,0 +1,2 @@
+resources:
+- argocd.snappcloud.io_argocdusers.yaml

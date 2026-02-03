@@ -17,168 +17,195 @@ limitations under the License.
 package controller_test
 
 import (
-	"context"
-	"time"
-
 	argov1alpha1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	argocduserv1alpha1 "github.com/snapp-incubator/argocd-complementary-operator/api/v1alpha1"
 	"github.com/snapp-incubator/argocd-complementary-operator/internal/controller"
 	corev1 "k8s.io/api/core/v1"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
+	logf "sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-var ctx = context.Background()
+var (
+	// Namespace controller tests variables
+	testNSName          = "test-ns"
+	nsTestAuName        = "ns-test-au"
+	nsTestAuAdminCIPass = "some_pass_admin"
+	nsTestAuAdminUsers  = []string{"user-a1", "user-a2"}
+	testAuViewCIPass    = "some_pass_view"
+	testAuviewUsers     = []string{"user-v1", "user-v2"}
+	nsCloudyAuName      = "ns-cloudy-au"
+	nonExistAuName      = "nonexists-team"
+)
 
-var _ = Describe("namespace controller to create teams", func() {
-	// Define utility constants for object names and testing timeouts/durations and intervals.
-	const (
-		timeout  = time.Second * 20
-		interval = time.Millisecond * 30
-	)
-	// Creating user-argocd namespace
-	Context("When cluster bootstrap", func() {
-		It("Should create user-argocd NS", func() {
-			By("Creating user-argocd NS", func() {
-				ArgoNs := &corev1.Namespace{
-					ObjectMeta: metav1.ObjectMeta{
-						Name: "user-argocd",
-					},
-				}
-				Expect(k8sClient.Create(ctx, ArgoNs)).Should(Succeed())
-
-				lookupns := types.NamespacedName{Name: "user-argocd"}
-				Expect(k8sClient.Get(ctx, lookupns, ArgoNs)).Should(Succeed())
-			})
-		})
-	})
-
-	// Creating AppProj as soon as we create a test namespace
-	Context("when creating namespace", func() {
-		It("Should create appProject", func() {
-			By("Creating test namespace")
+var _ = Describe("Namespace controller", func() {
+	logger := logf.FromContext(ctx)
+	// Should NOT creating AppProj when we create a test namespace with approj label not exists
+	Context("When creating namespace", func() {
+		It("Should NOT create non-exists appProject", func() {
+			By("Creating test namespace with non-exists appProject label")
 			// create test namespace with test-team label.
 			testNS := &corev1.Namespace{
 				ObjectMeta: metav1.ObjectMeta{
-					Name: "test-ns",
+					Name: testNSName,
 					Labels: map[string]string{
-						controller.ProjectsLabel: "test-team",
-						controller.SourceLabel:   "test-team",
+						controller.ProjectsLabel: nonExistAuName,
+						controller.SourceLabel:   nonExistAuName,
 					},
 				},
 			}
 			Expect(k8sClient.Create(ctx, testNS)).Should(Succeed())
 
 			// make sure test namespace is created.
-			testNSLookup := types.NamespacedName{Name: "test-ns"}
+			testNSLookup := types.NamespacedName{Name: testNSName}
 			Expect(k8sClient.Get(ctx, testNSLookup, testNS)).Should(Succeed())
 
+			// make sure test argocduser is not created.
 			testAppProj := &argov1alpha1.AppProject{}
-			testAppProjLookup := types.NamespacedName{Name: "test-team", Namespace: "user-argocd"}
+			testAppProjLookup := types.NamespacedName{Name: nonExistAuName, Namespace: argocdAppsNs}
 			Eventually(func() bool {
 				err := k8sClient.Get(ctx, testAppProjLookup, testAppProj)
+				if err != nil {
+					logger.Error(err, "AppProject not found yet")
+					return false
+				}
 				return err == nil
-			}, timeout, interval).Should(BeTrue())
+			}, timeout, interval).Should(BeFalse())
+			Expect(testAppProj.Name).Should(Equal(""))
+		})
+	})
+
+	// Changing the namespace label and checking if the appProjects are updated
+	Context("When changing namespace team label", func() {
+		It("Should update related existing appProjects", func() {
+			By("Verifying Argocduser named test-au exists or created")
+			_ = ensureArgocdUserExists(ctx, nsTestAuName, argocduserv1alpha1.ArgocdUserSpec{
+				Admin: argocduserv1alpha1.ArgocdCIAdmin{
+					CIPass: nsTestAuAdminCIPass,
+					Users:  nsTestAuAdminUsers,
+				},
+				View: argocduserv1alpha1.ArgocdCIView{
+					CIPass: testAuViewCIPass,
+					Users:  testAuviewUsers,
+				},
+			})
+			By("Verifying AppProject named test-au exists")
+			testAuAppProj := &argov1alpha1.AppProject{}
+			testAuAppProjLookup := types.NamespacedName{Name: nsTestAuName, Namespace: argocdAppsNs}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, testAuAppProjLookup, testAuAppProj)
+			}, timeout, interval).Should(Succeed())
+			Expect(len(testAuAppProj.Spec.Destinations)).Should(Equal(0))
+
+			By("Adding test-ns namespace to test-au's destinations")
+			// update test namespace with test-au label.
+			testNS := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:   testNSName,
+					Labels: map[string]string{controller.ProjectsLabel: nsTestAuName},
+				},
+			}
+			Expect(k8sClient.Update(ctx, testNS)).Should(Succeed())
+
+			// make sure test namespace is updated.
+			testNSLookup := types.NamespacedName{Name: testNSName}
+			Expect(k8sClient.Get(ctx, testNSLookup, testNS)).Should(Succeed())
+			Expect(testNS.ObjectMeta.Labels[controller.ProjectsLabel]).Should(Equal(nsTestAuName))
+
+			// the test-au Appproject should be updated in user-argocd because of
+			// test-ns having team label for it
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, testAuAppProjLookup, testAuAppProj)).To(Succeed())
+				g.Expect(testAuAppProj.Spec.Destinations).To(HaveLen(1))
+				g.Expect(testAuAppProj.Spec.Destinations[0].Namespace).To(Equal(testNS.Name))
+			}, timeout, interval).Should(Succeed())
 
 			// make sure appproject has the correct fields.
-			Expect(testAppProj.Name).Should(Equal(testAppProjLookup.Name))
-			Expect(testAppProj.Namespace).Should(Equal(testAppProjLookup.Namespace))
-			Expect(testAppProj.Spec.Destinations[0].Namespace).Should(Equal(testNS.Name))
-			Expect(testAppProj.Spec.SourceNamespaces).Should(HaveLen(1))
-			Expect(testAppProj.Spec.SourceNamespaces[0]).Should(Equal(testNS.Name))
-		})
-	})
+			Expect(testAuAppProj.Name).Should(Equal(testAuAppProjLookup.Name))
+			Expect(testAuAppProj.Namespace).Should(Equal(testAuAppProjLookup.Namespace))
 
-	// Changing the namespace label and checking if the appProjects are updated
-	Context("when changing namespace team label", func() {
-		It("Should update appProject", func() {
-			By("Removing from AppProject and creating new AppProject", func() {
-				// update test namespace with cloudy-team label.
-				testNS := &corev1.Namespace{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:   "test-ns",
-						Labels: map[string]string{controller.ProjectsLabel: "cloudy-team"},
-					},
-				}
-				Expect(k8sClient.Update(ctx, testNS)).Should(Succeed())
+			By("Removeing the old namespace from old appproject and add it to the new one")
+			// Create cloudy-au argocduser
+			cloudyAu := &argocduserv1alpha1.ArgocdUser{
+				ObjectMeta: metav1.ObjectMeta{
+					Name: nsCloudyAuName,
+				},
+			}
+			Expect(k8sClient.Create(ctx, cloudyAu)).Should(Succeed())
+			lookup := types.NamespacedName{Name: nsCloudyAuName}
+			au := &argocduserv1alpha1.ArgocdUser{}
+			Expect(k8sClient.Get(ctx, lookup, au)).Should(Succeed())
+			Expect(au.Spec).Should(Equal(cloudyAu.Spec))
 
-				// make sure test namespace is updated.
-				testNSLookup := types.NamespacedName{Name: "test-ns"}
-				Expect(k8sClient.Get(ctx, testNSLookup, testNS)).Should(Succeed())
+			// Verify appproject has been created
+			cloudyAppProj := &argov1alpha1.AppProject{}
+			cloudyAppProjLookup := types.NamespacedName{Name: nsCloudyAuName, Namespace: argocdAppsNs}
+			Eventually(func() error {
+				return k8sClient.Get(ctx, cloudyAppProjLookup, cloudyAppProj)
+			}, timeout, interval).Should(Succeed())
+			// Check if new cloudy app project has no destination
+			Expect(len(cloudyAppProj.Spec.Destinations)).Should(Equal(0))
 
-				// appproject should be created in user-argocd for cloudy-team because of having
-				// namespace.
-				cloudyAppProj := &argov1alpha1.AppProject{}
-				cloudyAppProjLookup := types.NamespacedName{Name: "cloudy-team", Namespace: "user-argocd"}
-				Eventually(func() bool {
-					err := k8sClient.Get(ctx, cloudyAppProjLookup, cloudyAppProj)
-					return err == nil
-				}, timeout, interval).Should(BeTrue())
+			// update test namespace with cloudy-au label.
+			testNS = &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:   testNSName,
+					Labels: map[string]string{controller.ProjectsLabel: nsCloudyAuName},
+				},
+			}
+			Expect(k8sClient.Update(ctx, testNS)).Should(Succeed())
 
-				// make sure appproject has the correct fields.
-				Expect(cloudyAppProj.Name).Should(Equal(cloudyAppProjLookup.Name))
-				Expect(cloudyAppProj.Namespace).Should(Equal(cloudyAppProjLookup.Namespace))
-				Expect(cloudyAppProj.Spec.Destinations[0].Namespace).Should(Equal(testNS.Name))
+			// Make sure test namespace is updated.
+			Expect(k8sClient.Get(ctx, testNSLookup, testNS)).Should(Succeed())
+			Expect(testNS.ObjectMeta.Labels[controller.ProjectsLabel]).Should(Equal(nsCloudyAuName))
 
-				testAppProj := &argov1alpha1.AppProject{}
-				appProjLookupKey := types.NamespacedName{Name: "test-team", Namespace: "user-argocd"}
-				Eventually(func() bool {
-					err := k8sClient.Get(ctx, appProjLookupKey, testAppProj)
-					return err == nil
-				}, timeout, interval).Should(BeTrue())
-				Expect(testAppProj.Name).Should(Equal(appProjLookupKey.Name))
-				Expect(testAppProj.Namespace).Should(Equal(appProjLookupKey.Namespace))
-				// Eventually(testAppProj.Spec.Destinations).Should(BeEmpty())
-			})
-		})
-	})
+			// Make sure old test-au appproject has no destination.
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, testAuAppProjLookup, testAuAppProj)).To(Succeed())
+				g.Expect(testAuAppProj.Spec.Destinations).To(HaveLen(0))
+			}, timeout, interval).Should(Succeed())
 
-	// Changing the namespace label and checking if the appProjects are updated
-	Context("when changing namespace team label with multiple teams", func() {
-		It("Should update appProject with multiple labels", func() {
-			By("Removing from AppProject and creating new AppProject", func() {
-				// update test namespace with cloudy-team label.
-				testNS := &corev1.Namespace{
-					ObjectMeta: metav1.ObjectMeta{
-						Name:   "test-ns",
-						Labels: map[string]string{controller.ProjectsLabel: "cloudy-team.rainy-team"},
-					},
-				}
-				Expect(k8sClient.Update(ctx, testNS)).Should(Succeed())
+			// the cloudy-au Appproject should be updated in user-argocd because of
+			// test-ns having team label for it now.
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, cloudyAppProjLookup, cloudyAppProj)).To(Succeed())
+				g.Expect(cloudyAppProj.Spec.Destinations).To(HaveLen(1))
+				g.Expect(cloudyAppProj.Spec.Destinations[0].Namespace).To(Equal(testNS.Name))
+			}, timeout, interval).Should(Succeed())
 
-				// make sure test namespace is updated.
-				testNSLookup := types.NamespacedName{Name: "test-ns"}
-				Expect(k8sClient.Get(ctx, testNSLookup, testNS)).Should(Succeed())
+			// Changing the namespace label to multiple projects names
+			By("Updating multiple appprojects")
 
-				// appproject should be created in user-argocd for cloudy-team because of having
-				// namespace.
-				cloudyAppProj := new(argov1alpha1.AppProject)
-				cloudyAppProjLookup := types.NamespacedName{Name: "cloudy-team", Namespace: "user-argocd"}
-				Eventually(func() bool {
-					err := k8sClient.Get(ctx, cloudyAppProjLookup, cloudyAppProj)
-					return err == nil
-				}, timeout, interval).Should(BeTrue())
+			// update test namespace with cloudy-au and test-au label.
+			testNS = &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:   testNSName,
+					Labels: map[string]string{controller.ProjectsLabel: nsTestAuName + "." + nsCloudyAuName},
+				},
+			}
+			Expect(k8sClient.Update(ctx, testNS)).Should(Succeed())
 
-				// make sure appproject has the correct fields.
-				Expect(cloudyAppProj.Name).Should(Equal(cloudyAppProjLookup.Name))
-				Expect(cloudyAppProj.Namespace).Should(Equal(cloudyAppProjLookup.Namespace))
-				Expect(cloudyAppProj.Spec.Destinations[0].Namespace).Should(Equal(testNS.Name))
+			// Make sure test namespace is updated.
+			Expect(k8sClient.Get(ctx, testNSLookup, testNS)).Should(Succeed())
 
-				// appproject should be created in user-argocd for rainy-team because of having
-				// namespace.
-				rainyAppProj := new(argov1alpha1.AppProject)
-				rainyAppProjLookup := types.NamespacedName{Name: "rainy-team", Namespace: "user-argocd"}
-				Eventually(func() bool {
-					err := k8sClient.Get(ctx, rainyAppProjLookup, rainyAppProj)
-					return err == nil
-				}, timeout, interval).Should(BeTrue())
+			// The cloudy-au Appproject should be updated because the test-ns
+			// namespace has it's label.
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, cloudyAppProjLookup, cloudyAppProj)).To(Succeed())
+				g.Expect(cloudyAppProj.Spec.Destinations).To(HaveLen(1))
+				g.Expect(cloudyAppProj.Spec.Destinations[0].Namespace).To(Equal(testNS.Name))
+			}, timeout, interval).Should(Succeed())
 
-				// make sure appproject has the correct fields.
-				Expect(rainyAppProj.Name).Should(Equal(rainyAppProjLookup.Name))
-				Expect(rainyAppProj.Namespace).Should(Equal(rainyAppProjLookup.Namespace))
-				Expect(rainyAppProj.Spec.Destinations[0].Namespace).Should(Equal(testNS.Name))
-			})
+			// The test-au Appproject should be updated because the test-ns
+			// namespace has it's label.
+			Eventually(func(g Gomega) {
+				g.Expect(k8sClient.Get(ctx, testAuAppProjLookup, testAuAppProj)).To(Succeed())
+				g.Expect(testAuAppProj.Spec.Destinations).To(HaveLen(1))
+				g.Expect(testAuAppProj.Spec.Destinations[0].Namespace).To(Equal(testNS.Name))
+			}, timeout, interval).Should(Succeed())
+
 		})
 	})
 })

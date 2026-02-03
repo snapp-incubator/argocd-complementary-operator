@@ -8,6 +8,7 @@ rules:
   - ""
   resources:
   - configmaps
+  - secrets
   verbs:
   - create
   - delete
@@ -19,15 +20,25 @@ rules:
 - apiGroups:
   - ""
   resources:
-  - secrets
+  - namespaces
   verbs:
-  - create
-  - delete
   - get
   - list
+  - watch
+- apiGroups:
+  - ""
+  resources:
+  - namespaces/finalizers
+  verbs:
+  - update
+- apiGroups:
+  - ""
+  resources:
+  - namespaces/status
+  verbs:
+  - get
   - patch
   - update
-  - watch
 - apiGroups:
   - argocd.snappcloud.io
   resources:
@@ -60,15 +71,17 @@ rules:
   - appprojects
   verbs:
   - create
+  - delete
   - get
   - list
   - patch
   - update
   - watch
 - apiGroups:
-  - ""
+  - rbac.authorization.k8s.io
   resources:
-  - namespaces
+  - clusterrolebindings
+  - clusterroles
   verbs:
   - create
   - delete
@@ -78,23 +91,9 @@ rules:
   - update
   - watch
 - apiGroups:
-  - ""
-  resources:
-  - namespaces/finalizers
-  verbs:
-  - update
-- apiGroups:
-  - ""
-  resources:
-  - namespaces/status
-  verbs:
-  - get
-  - patch
-  - update
-- apiGroups:
   - user.openshift.io
   resources:
-  - '*'
+  - groups
   verbs:
   - create
   - delete
