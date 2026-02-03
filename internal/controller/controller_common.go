@@ -3,6 +3,7 @@ package controller
 import (
 	"fmt"
 	"os"
+	"slices"
 	"strings"
 	"sync"
 
@@ -11,6 +12,9 @@ import (
 
 	"golang.org/x/crypto/bcrypt"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/runtime/schema"
+	"k8s.io/client-go/discovery"
+	ctrl "sigs.k8s.io/controller-runtime"
 )
 
 const (
@@ -34,6 +38,26 @@ var NamespaceCache = &SafeNsCache{
 	projects:    nil,
 	namespaces:  nil,
 	initialized: false,
+}
+
+func isCRDInstalled(gvk schema.GroupVersionKind) bool {
+	cfg := ctrl.GetConfigOrDie()
+	discoveryClient, err := discovery.NewDiscoveryClientForConfig(cfg)
+	if err != nil {
+		return false
+	}
+
+	resources, err := discoveryClient.ServerResourcesForGroupVersion(gvk.GroupVersion().String())
+	if err != nil {
+		return false // Group/Version not available
+	}
+
+	for _, r := range resources.APIResources {
+		if r.Kind == gvk.Kind {
+			return true
+		}
+	}
+	return false
 }
 
 func isTeamClusterAdmin(team string, clusterAdminList []string) bool {
@@ -137,6 +161,10 @@ func hashPassword(password string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("bcrypt failed: %w", err)
 	}
+	// Validate hash is not empty
+	if string(bytes) == "" {
+		return "", fmt.Errorf("password hash is empty")
+	}
 	return string(bytes), err
 }
 
@@ -158,5 +186,6 @@ func mergeStringSlices(a, b []string) []string {
 	for item := range ns.All() {
 		result = append(result, item)
 	}
+	slices.Sort(result)
 	return result
 }

@@ -18,14 +18,13 @@ package controller
 
 import (
 	"context"
-	b64 "encoding/base64"
-	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
 	"sync"
 
 	argov1alpha1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
+	"golang.org/x/crypto/bcrypt"
 
 	userv1 "github.com/openshift/api/user/v1"
 	argocduserv1alpha1 "github.com/snapp-incubator/argocd-complementary-operator/api/v1alpha1"
@@ -45,14 +44,17 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
+var gvk = userv1.GroupVersion.WithKind("Group")
+
 // ArgocdUserReconciler reconciles a ArgocdUser object
 type ArgocdUserReconciler struct {
 	client.Client
-	Scheme *runtime.Scheme
-	mu     sync.Mutex
+	Scheme            *runtime.Scheme
+	mu                sync.Mutex
+	GroupCRDInstalled bool
 }
 
-//+kubebuilder:rbac:groups=argocd.snappcloud.io,resources=argocdusers,verbs=get;list;watch;create;update;patch;delete
+//+kubebuilder:rbac:groups=argocd.snappcloud.io,resources=argocdusers,verbs=get;list;watch;create;update;edit;patch;delete
 //+kubebuilder:rbac:groups=argocd.snappcloud.io,resources=argocdusers/status,verbs=get;update;patch
 //+kubebuilder:rbac:groups=argocd.snappcloud.io,resources=argocdusers/finalizers,verbs=update
 //+kubebuilder:rbac:groups="",resources=configmaps,verbs=get;list;watch;create;update;patch;delete
@@ -89,6 +91,7 @@ func (r *ArgocdUserReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 			return ctrl.Result{}, err
 		}
 	}
+
 	// Check if the ArgocdUser is being deleted
 	if !argocduser.DeletionTimestamp.IsZero() {
 		// ArgocdUser is being deleted
@@ -108,6 +111,7 @@ func (r *ArgocdUserReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		}
 		return ctrl.Result{}, nil
 	}
+
 	// Add finalizer if not present (for new resources)
 	if !controllerutil.ContainsFinalizer(argocduser, argocdUserFinalizer) {
 		controllerutil.AddFinalizer(argocduser, argocdUserFinalizer)
@@ -131,6 +135,7 @@ func (r *ArgocdUserReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		logger.Error(err, "Failed to reconcile AppProject", "Argocduser/AppProject", argocduserName)
 		return ctrl.Result{}, err
 	}
+
 	if err := r.reconcileArgocdStaticUser(ctx, req, argocduser, "admin", argocduser.Spec.Admin.CIPass, argocduser.Spec.Admin.Users); err != nil {
 		logger.Error(err, "Failed create argocd static user admin")
 		return ctrl.Result{}, err
@@ -167,10 +172,7 @@ func (r *ArgocdUserReconciler) reconcileClusterRole(ctx context.Context, argocdu
 	if err := controllerutil.SetControllerReference(argocduser, desiredClusterRole, r.Scheme); err != nil {
 		logger.Error(err, "Failed to set Argocduser as owner reference on ClusterRole ", "Argocduser", argocduser.Name, "ClusterRole", clusterRoleName)
 		return err
-	} else {
-		logger.Info("Argocduser has been set as owner reference on ClusterRole", "Argocduser", argocduser.Name, "ClusterRole", clusterRoleName)
 	}
-
 	// Try to get existing ClusterRole
 	existingClusterRole := &rbacv1.ClusterRole{}
 	err := r.Get(ctx, types.NamespacedName{Name: clusterRoleName}, existingClusterRole)
@@ -192,13 +194,13 @@ func (r *ArgocdUserReconciler) reconcileClusterRole(ctx context.Context, argocdu
 
 	// Update existing ClusterRole if OwnerReferences differs
 	if !reflect.DeepEqual(existingClusterRole.OwnerReferences, desiredClusterRole.OwnerReferences) {
-		logger.Info("Updating ClusterRole", "ClusterRole", clusterRoleName)
+		logger.Info("Updating OwnerReferences of ClusterRole", "ClusterRole", clusterRoleName)
 		existingClusterRole.OwnerReferences = desiredClusterRole.OwnerReferences
 		if err := r.Update(ctx, existingClusterRole); err != nil {
 			logger.Error(err, "Failed to update ClusterRole", "ClusterRole", clusterRoleName)
 			return err
 		}
-		logger.Info("Successfully updated ClusterRole", "ClusterRole", clusterRoleName)
+		logger.Info("Successfully updated OwnerReferences of ClusterRole", "ClusterRole", clusterRoleName)
 	}
 	// Update existing ClusterRole if rules differ
 	if !reflect.DeepEqual(existingClusterRole.Rules, desiredClusterRole.Rules) {
@@ -246,8 +248,6 @@ func (r *ArgocdUserReconciler) reconcileClusterRoleBinding(ctx context.Context, 
 	if err := controllerutil.SetControllerReference(argocduser, desiredClusterRoleBinding, r.Scheme); err != nil {
 		logger.Error(err, "Failed to set Argocduser as owner reference on ClusterRoleBinding ", "Argocduser", argocduser.Name, "ClusterRoleBinding", clusterRoleBindingName)
 		return err
-	} else {
-		logger.Info("Argocduser has been set as owner reference on ClusterRoleBinding", "Argocduser", argocduser.Name, "ClusterRoleBinding", clusterRoleBindingName)
 	}
 
 	// Try to get existing ClusterRoleBinding
@@ -270,13 +270,13 @@ func (r *ArgocdUserReconciler) reconcileClusterRoleBinding(ctx context.Context, 
 
 	// Update existing ClusterRoleBinding if OwnerReferences differ
 	if !reflect.DeepEqual(existingClusterRoleBinding.OwnerReferences, desiredClusterRoleBinding.OwnerReferences) {
-		logger.Info("Updating ClusterRoleBinding", "ClusterRoleBinding", clusterRoleBindingName)
+		logger.Info("Updating OwnerReferences of ClusterRoleBinding", "ClusterRoleBinding", clusterRoleBindingName)
 		existingClusterRoleBinding.OwnerReferences = desiredClusterRoleBinding.OwnerReferences
 		if err := r.Update(ctx, existingClusterRoleBinding); err != nil {
 			logger.Error(err, "Failed to update ClusterRoleBinding")
 			return err
 		}
-		logger.Info("Successfully updated ClusterRoleBinding", "ClusterRoleBinding", clusterRoleBindingName)
+		logger.Info("Successfully updated OwnerReferences of ClusterRoleBinding", "ClusterRoleBinding", clusterRoleBindingName)
 	}
 	// Update existing ClusterRoleBinding if subjects differ
 	if !reflect.DeepEqual(existingClusterRoleBinding.Subjects, desiredClusterRoleBinding.Subjects) {
@@ -328,34 +328,50 @@ func (r *ArgocdUserReconciler) reconcileAppProject(ctx context.Context, argocdus
 		}
 	}
 
-	needsUpdate := false
+	desiredAppProject.Spec.SourceRepos = mergeStringSlices(desiredAppProject.Spec.SourceRepos, found.Spec.SourceRepos)
 
+	needsUpdate := false
+	var bothEmpty bool
 	// 1. Fix Destinations (source of truth: NamespaceCache)
-	if !reflect.DeepEqual(found.Spec.Destinations, desiredAppProject.Spec.Destinations) {
+	// First, we check length to prevent considering nil and [] as not equal in reflect.DeepEqual
+	bothEmpty = (len(found.Spec.Destinations) == 0 && len(desiredAppProject.Spec.Destinations) == 0)
+	// Then check with reflect.DeepEqual
+	if !bothEmpty && !reflect.DeepEqual(found.Spec.Destinations, desiredAppProject.Spec.Destinations) {
 		logger.Info("Updating AppProject Destinations from Namespaces", "AppProject", appProjectName,
 			"existingCount", len(found.Spec.Destinations), "desiredCount", len(desiredAppProject.Spec.Destinations))
+		logger.Info("Destinations differ", "existing", found.Spec.Destinations, "desired", desiredAppProject.Spec.Destinations)
 		found.Spec.Destinations = desiredAppProject.Spec.Destinations
 		needsUpdate = true
 	}
 	// 2. Fix SourceNamespaces (source of truth: NamespaceCache)
-	if !reflect.DeepEqual(found.Spec.SourceNamespaces, desiredAppProject.Spec.SourceNamespaces) {
+	// First, we check length to prevent considering nil and [] as not equal in reflect.DeepEqual
+	bothEmpty = (len(found.Spec.SourceNamespaces) == 0 && len(desiredAppProject.Spec.SourceNamespaces) == 0)
+	// Then check with reflect.DeepEqual
+	if !bothEmpty && !reflect.DeepEqual(found.Spec.SourceNamespaces, desiredAppProject.Spec.SourceNamespaces) {
 		logger.Info("Updating AppProject SourceNamespaces from NamespaceCache", "AppProject", appProjectName,
 			"existingCount", len(found.Spec.SourceNamespaces), "desiredCount", len(desiredAppProject.Spec.SourceNamespaces))
+		logger.Info("SourceNamespaces differ", "existing", found.Spec.SourceNamespaces, "desired", desiredAppProject.Spec.SourceNamespaces)
 		found.Spec.SourceNamespaces = desiredAppProject.Spec.SourceNamespaces
 		needsUpdate = true
 	}
 	// 3. Fix Roles (managed by ArgocdUser)
-	if !reflect.DeepEqual(found.Spec.Roles, desiredAppProject.Spec.Roles) {
+	// First, we check length to prevent considering nil and [] as not equal in reflect.DeepEqual
+	bothEmpty = (len(found.Spec.Roles) == 0 && len(desiredAppProject.Spec.Roles) == 0)
+	// Then check with reflect.DeepEqual
+	if !bothEmpty && !reflect.DeepEqual(found.Spec.Roles, desiredAppProject.Spec.Roles) {
 		logger.Info("Updating AppProject Roles", "AppProject", desiredAppProject)
 		found.Spec.Roles = desiredAppProject.Spec.Roles
 		needsUpdate = true
 	}
 	// 4. Merge SourceRepos (additive - preserve manually added repos)
-	mergedRepos := mergeStringSlices(desiredAppProject.Spec.SourceRepos, found.Spec.SourceRepos)
-	if !reflect.DeepEqual(found.Spec.SourceRepos, mergedRepos) {
-		logger.Info("Updating source repos with merged repos", "AppProject", appProjectName,
-			"existingCount", len(desiredAppProject.Spec.SourceRepos), "newCount", len(mergedRepos))
-		found.Spec.SourceRepos = mergedRepos
+	// First, we check length to prevent considering nil and [] as not equal in reflect.DeepEqual
+	bothEmpty = (len(found.Spec.SourceRepos) == 0 && len(desiredAppProject.Spec.SourceRepos) == 0)
+	// Then check with reflect.DeepEqual
+	if !bothEmpty && !reflect.DeepEqual(found.Spec.SourceRepos, desiredAppProject.Spec.SourceRepos) {
+		logger.Info("Updating AppProject SourceRepos", "AppProject", appProjectName,
+			"existingCount", len(desiredAppProject.Spec.SourceRepos), "newCount", len(desiredAppProject.Spec.SourceRepos))
+		logger.Info("SourceRepos differ", "existing", found.Spec.SourceRepos, "desired", desiredAppProject.Spec.SourceRepos)
+		found.Spec.SourceRepos = desiredAppProject.Spec.SourceRepos
 	}
 
 	// Only update if something changed
@@ -392,6 +408,10 @@ func (r *ArgocdUserReconciler) reconcileArgocdStaticUser(
 
 func (r *ArgocdUserReconciler) UpdateUserArgocdConfig(ctx context.Context, argocduser *argocduserv1alpha1.ArgocdUser, roleName string, ciPass string) error {
 	logger := log.FromContext(ctx)
+
+	// Reconcile argocd-cm
+	accountKey := "accounts." + argocduser.Name + "-" + roleName + "-ci"
+	expectedValue := "apiKey,login"
 	configMap := &corev1.ConfigMap{}
 	err := r.Get(ctx, types.NamespacedName{Name: userArgocdStaticUserCM, Namespace: userArgocdNS}, configMap)
 	if err != nil {
@@ -403,41 +423,58 @@ func (r *ArgocdUserReconciler) UpdateUserArgocdConfig(ctx context.Context, argoc
 			return err
 		}
 	}
-	patch := client.MergeFrom(configMap.DeepCopy())
-	configMap.Data["accounts."+argocduser.Name+"-"+roleName+"-ci"] = "apiKey,login"
-	err = r.Patch(ctx, configMap, patch)
-	if err != nil {
-		logger.Error(err, "Failed to patch ConfigMap", "ConfigMap", userArgocdStaticUserCM, "Argocduser-role", argocduser.Name+roleName)
-		return err
+	// Only patch if value differs
+	if configMap.Data[accountKey] != expectedValue {
+		patch := client.MergeFrom(configMap.DeepCopy())
+		configMap.Data[accountKey] = expectedValue
+		if err := r.Patch(ctx, configMap, patch); err != nil {
+			logger.Error(err, "Failed to patch ConfigMap")
+			return err
+		}
+		logger.Info("Updated ConfigMap account", "key", accountKey)
 	}
 
-	hash, err := hashPassword(ciPass) // ignore error for the sake of simplicity
-	if err != nil {
-		logger.Error(err, "Failed to hash ciPassword", "Argocduser-role", argocduser.Name+roleName)
-		return fmt.Errorf("password hashing failed: %w", err)
+	// Reconcile argocd-secret
+	passwordKey := "accounts." + argocduser.Name + "-" + roleName + "-ci.password"
+
+	// Helper function for updting password secret
+	patchWithHashFunc := func(secret *corev1.Secret) error {
+		// Generate and set password only when key doesn't exist
+		hash, err := hashPassword(ciPass)
+		if err != nil {
+			logger.Error(err, "Failed to hash ciPassword", "Argocduser-role", argocduser.Name+roleName)
+			return fmt.Errorf("password hashing failed: %w", err)
+		}
+		patch := client.MergeFrom(secret.DeepCopy())
+		if secret.Data == nil {
+			secret.Data = make(map[string][]byte)
+		}
+		secret.Data[passwordKey] = []byte(hash)
+		if err := r.Patch(ctx, secret, patch); err != nil {
+			logger.Error(err, "Failed to patch Secret", "Argocduser-role", argocduser.Name+"-"+roleName)
+			return err
+		}
+		logger.Info("Updated Secret password", "key", passwordKey)
+		return nil
 	}
 
-	// Validate hash is not empty
-	if hash == "" {
-		return fmt.Errorf("password hash is empty for user %s role %s", argocduser.Name, roleName)
+	secret := &corev1.Secret{}
+	if err = r.Get(ctx, types.NamespacedName{Name: userArgocdSecret, Namespace: userArgocdNS}, secret); err != nil {
+		if errors.IsNotFound(err) {
+			logger.Error(err, "Argocd Secret not found", "Secret", userArgocdSecret)
+			return err
+		} else {
+			logger.Error(err, "Failed to get Secret")
+			return err
+		}
 	}
-	encodedPass := b64.StdEncoding.EncodeToString([]byte(hash))
-	staticPassword := map[string]map[string]string{
-		"data": {
-			"accounts." + argocduser.Name + "-" + roleName + "-ci.password": encodedPass,
-		},
-	}
-	staticPassByte, _ := json.Marshal(staticPassword)
-
-	err = r.Patch(ctx, &corev1.Secret{
-		ObjectMeta: metav1.ObjectMeta{
-			Namespace: userArgocdNS,
-			Name:      userArgocdSecret,
-		},
-	}, client.RawPatch(types.StrategicMergePatchType, staticPassByte))
-	if err != nil {
-		logger.Error(err, "Failed to patch Secret", "Argocduser-role", argocduser.Name+roleName)
-		return err
+	// Only patch if value differs or doesn't exists
+	if value, exists := secret.Data[passwordKey]; !exists {
+		return patchWithHashFunc(secret)
+	} else if err = bcrypt.CompareHashAndPassword(value, []byte(ciPass)); exists && err != nil {
+		// If password exists but is not equal to the desired one
+		logger.Info("Going to update password. Password hash mismatch for user", "Argocduser-role", argocduser.Name+"-"+roleName)
+		return patchWithHashFunc(secret)
 	}
 	return nil
 }
@@ -446,8 +483,7 @@ func (r *ArgocdUserReconciler) AddArgoUsersToGroup(ctx context.Context, argocdus
 	logger := log.FromContext(ctx)
 
 	// Check if Group CRD is registered in the scheme, to ignore this in integration tests
-	gvk := userv1.GroupVersion.WithKind("Group")
-	if !r.Scheme.Recognizes(gvk) {
+	if !r.GroupCRDInstalled {
 		logger.Info("Group CRD not registered in scheme, skipping group management")
 		return nil
 	}
@@ -477,8 +513,10 @@ func (r *ArgocdUserReconciler) AddArgoUsersToGroup(ctx context.Context, argocdus
 	mergedUsers := mergeStringSlices(group.Users, argoUsers)
 
 	// Only update if the users changed
-	if !reflect.DeepEqual(group.Users, mergedUsers) {
+	bothEmpty := (len(group.Users) == 0 && len(mergedUsers) == 0)
+	if !bothEmpty && !reflect.DeepEqual(group.Users, mergedUsers) {
 		logger.Info("Updating group with merged users", "Group", groupName, "existingCount", len(group.Users), "newCount", len(mergedUsers))
+		logger.Info("Users differ", "existing", group.Users, "merged", mergedUsers)
 		group.Users = mergedUsers
 		err = r.Update(ctx, group)
 		if err != nil {
@@ -599,6 +637,8 @@ func (r *ArgocdUserReconciler) removeSecretEntries(ctx context.Context, name str
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ArgocdUserReconciler) SetupWithManager(mgr ctrl.Manager) error {
+	r.GroupCRDInstalled = isCRDInstalled(gvk)
+
 	builder := ctrl.NewControllerManagedBy(mgr).
 		For(&argocduserv1alpha1.ArgocdUser{}).
 		Owns(&rbacv1.ClusterRole{}).
@@ -671,8 +711,8 @@ func (r *ArgocdUserReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			}),
 		)
 
-		// Conditionally add Group watch only if the CRD is registered
-	if r.Scheme.Recognizes(userv1.GroupVersion.WithKind("Group")) {
+	// Conditionally add Group watch only if the CRD is registered
+	if r.GroupCRDInstalled {
 		builder = builder.Watches(
 			&userv1.Group{},
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {

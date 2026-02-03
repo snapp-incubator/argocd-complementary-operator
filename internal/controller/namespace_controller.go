@@ -329,15 +329,24 @@ func (r *NamespaceReconciler) reconcileAppProject(ctx context.Context, logger lo
 	}
 
 	// If AppProject already exist, check if it is deeply equal with desrired state on destinations and source namespaces
-	if !reflect.DeepEqual(appProj.Spec.Destinations, found.Spec.Destinations) {
+	var bothEmpty bool
+	// First, we check length to prevent considering nil and [] as not equal in reflect.DeepEqual
+	bothEmpty = (len(found.Spec.Destinations) == 0 && len(appProj.Spec.Destinations) == 0)
+	// Then check with reflect.DeepEqual
+	if !bothEmpty && !reflect.DeepEqual(appProj.Spec.Destinations, found.Spec.Destinations) {
 		logger.Info("Found AppProject Destinations is not equad to desired one, doing the upgrade", "AppProject", team)
+		logger.Info("Destinations differ", "existing", found.Spec.Destinations, "desired", appProj.Spec.Destinations)
 		found.Spec.Destinations = appProj.Spec.Destinations
 		if err := r.Update(ctx, found); err != nil {
 			return fmt.Errorf("error updating AppProject: %v", err)
 		}
 	}
-	if !reflect.DeepEqual(appProj.Spec.SourceNamespaces, found.Spec.SourceNamespaces) {
+	// First, we check length to prevent considering nil and [] as not equal in reflect.DeepEqual
+	bothEmpty = (len(found.Spec.SourceNamespaces) == 0 && len(appProj.Spec.SourceNamespaces) == 0)
+	// Then check with reflect.DeepEqual
+	if !bothEmpty && !reflect.DeepEqual(appProj.Spec.SourceNamespaces, found.Spec.SourceNamespaces) {
 		logger.Info("Founded AppProject SourceNamespaces is not equad to desired one, doing the upgrade", "AppProject", team)
+		logger.Info("SourceNamespaces differ", "existing", found.Spec.SourceNamespaces, "desired", appProj.Spec.SourceNamespaces)
 		found.Spec.SourceNamespaces = appProj.Spec.SourceNamespaces
 		if err := r.Update(ctx, found); err != nil {
 			return fmt.Errorf("error updating AppProject: %v", err)
