@@ -40,15 +40,24 @@ import (
 type NamespaceReconciler struct {
 	client.Client
 	Scheme *runtime.Scheme
-	mu     sync.Mutex
+	// mu serializes all reconciliations to prevent lost AppProject updates.
+	// Each reconcile performs a read-modify-write cycle (read cache → update
+	// cache → update AppProject) that must be atomic. Without this mutex, two
+	// concurrent namespace reconciliations for the same project could both read
+	// stale cache state and the second AppProject write would overwrite the first.
+	// Per-project locking is possible but adds complexity (lock ordering for
+	// multi-project namespaces, deadlock risk) with little practical benefit
+	// given the low write rate.
+	mu sync.Mutex
 }
 
 type SafeNsCache struct {
-	lock        sync.Mutex
-	projects    map[string]nameset.Nameset[string]
-	namespaces  map[string]nameset.Nameset[string]
-	sources     map[string]nameset.Nameset[string]
-	initialized bool
+	lock       sync.RWMutex
+	projects   map[string]nameset.Nameset[string]
+	namespaces map[string]nameset.Nameset[string]
+	sources    map[string]nameset.Nameset[string]
+	initOnce   sync.Once
+	initErr    error
 }
 
 // Trust given source in the given project.
@@ -107,8 +116,8 @@ func (c *SafeNsCache) LeaveProject(ns, proj string) {
 // GetProjects will return projects for given Namespace name. It creates a copy
 // from current name-set.
 func (c *SafeNsCache) GetProjects(ns string) []string {
-	c.lock.Lock()
-	defer c.lock.Unlock()
+	c.lock.RLock()
+	defer c.lock.RUnlock()
 
 	r := make([]string, 0, c.projects[ns].Len())
 
@@ -122,8 +131,8 @@ func (c *SafeNsCache) GetProjects(ns string) []string {
 // GetNamespaces will return namespaces for given AppProject name. It creates a copy
 // from current name-set.
 func (c *SafeNsCache) GetNamespaces(proj string) []string {
-	c.lock.Lock()
-	defer c.lock.Unlock()
+	c.lock.RLock()
+	defer c.lock.RUnlock()
 
 	r := make([]string, 0, c.namespaces[proj].Len())
 	for k := range c.namespaces[proj].All() {
@@ -136,8 +145,8 @@ func (c *SafeNsCache) GetNamespaces(proj string) []string {
 // GetSources will return sources for given AppProject name. It creates a copy
 // from current name-set.
 func (c *SafeNsCache) GetSources(proj string) []string {
-	c.lock.Lock()
-	defer c.lock.Unlock()
+	c.lock.RLock()
+	defer c.lock.RUnlock()
 
 	r := make([]string, 0, len(c.sources))
 
@@ -151,36 +160,42 @@ func (c *SafeNsCache) GetSources(proj string) []string {
 }
 
 func (c *SafeNsCache) InitOrPass(r *NamespaceReconciler, ctx context.Context) error {
-	if c.initialized {
-		return nil
-	}
+	c.initOnce.Do(func() {
+		c.lock.Lock()
+		defer c.lock.Unlock()
 
-	defer func() {
-		c.initialized = true
-	}()
+		appProjList := &argov1alpha1.AppProjectList{}
 
-	appProjList := &argov1alpha1.AppProjectList{}
+		c.namespaces = make(map[string]nameset.Nameset[string])
+		c.projects = make(map[string]nameset.Nameset[string])
+		c.sources = make(map[string]nameset.Nameset[string])
 
-	c.namespaces = make(map[string]nameset.Nameset[string])
-	c.projects = make(map[string]nameset.Nameset[string])
-	c.sources = make(map[string]nameset.Nameset[string])
-
-	if err := r.List(ctx, appProjList,
-		&client.ListOptions{Namespace: userArgocdNS},
-	); err != nil {
-		return err
-	}
-
-	for _, apItem := range appProjList.Items {
-		for _, dest := range apItem.Spec.Destinations {
-			if apItem.Name == "default" {
-				continue
-			}
-			c.JoinProject(dest.Namespace, apItem.Name)
+		if err := r.List(ctx, appProjList,
+			&client.ListOptions{Namespace: userArgocdNS},
+		); err != nil {
+			c.initErr = err
+			return
 		}
-	}
 
-	return nil
+		for _, apItem := range appProjList.Items {
+			for _, dest := range apItem.Spec.Destinations {
+				if apItem.Name == "default" {
+					continue
+				}
+				// Directly manipulate maps instead of calling JoinProject to avoid
+				// re-acquiring the lock (we already hold it).
+				if _, ok := c.projects[dest.Namespace]; !ok {
+					c.projects[dest.Namespace] = nameset.New[string]()
+				}
+				if _, ok := c.namespaces[apItem.Name]; !ok {
+					c.namespaces[apItem.Name] = nameset.New[string]()
+				}
+				c.projects[dest.Namespace].Add(apItem.Name)
+				c.namespaces[apItem.Name].Add(dest.Namespace)
+			}
+		}
+	})
+	return c.initErr
 }
 
 //+kubebuilder:rbac:groups=core,resources=namespaces,verbs=get;list;watch

@@ -34,10 +34,9 @@ const (
 )
 
 var NamespaceCache = &SafeNsCache{
-	lock:        sync.Mutex{},
-	projects:    nil,
-	namespaces:  nil,
-	initialized: false,
+	lock:       sync.RWMutex{},
+	projects:   nil,
+	namespaces: nil,
 }
 
 func isCRDInstalled(cfg *rest.Config, gvk schema.GroupVersionKind) bool {
