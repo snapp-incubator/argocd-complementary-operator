@@ -10,6 +10,29 @@ import (
 	"github.com/snapp-incubator/argocd-complementary-operator/pkg/nameset"
 )
 
+const testSourceNS = "source-ns"
+
+func mustUnsetenv(t *testing.T, key string) {
+	t.Helper()
+	if err := os.Unsetenv(key); err != nil {
+		t.Fatalf("failed to unset env var %s: %v", key, err)
+	}
+}
+
+func setupAppProjTest(t *testing.T) func() *SafeNsCache {
+	t.Helper()
+	origCache := NamespaceCache
+	t.Cleanup(func() { NamespaceCache = origCache })
+
+	return func() *SafeNsCache {
+		return &SafeNsCache{
+			projects:   make(map[string]nameset.Nameset[string]),
+			namespaces: make(map[string]nameset.Nameset[string]),
+			sources:    make(map[string]nameset.Nameset[string]),
+		}
+	}
+}
+
 func TestHashPassword(t *testing.T) {
 	t.Run("valid password returns verifiable hash", func(t *testing.T) {
 		hash, err := hashPassword("mysecretpass")
@@ -207,23 +230,13 @@ func TestIsTeamClusterAdmin(t *testing.T) {
 	}
 }
 
-func TestCreateAppProj(t *testing.T) {
-	// Save and restore global NamespaceCache
-	origCache := NamespaceCache
-	defer func() { NamespaceCache = origCache }()
-
-	newCache := func() *SafeNsCache {
-		return &SafeNsCache{
-			projects:   make(map[string]nameset.Nameset[string]),
-			namespaces: make(map[string]nameset.Nameset[string]),
-			sources:    make(map[string]nameset.Nameset[string]),
-		}
-	}
+func TestCreateAppProjStructure(t *testing.T) {
+	newCache := setupAppProjTest(t)
 
 	t.Run("basic structure", func(t *testing.T) {
 		NamespaceCache = newCache()
-		os.Unsetenv("PUBLIC_REPOS")
-		os.Unsetenv("CLUSTER_ADMIN_TEAMS")
+		mustUnsetenv(t, "PUBLIC_REPOS")
+		mustUnsetenv(t, "CLUSTER_ADMIN_TEAMS")
 
 		proj := createAppProj("my-team")
 
@@ -246,8 +259,8 @@ func TestCreateAppProj(t *testing.T) {
 
 	t.Run("admin role policies", func(t *testing.T) {
 		NamespaceCache = newCache()
-		os.Unsetenv("PUBLIC_REPOS")
-		os.Unsetenv("CLUSTER_ADMIN_TEAMS")
+		mustUnsetenv(t, "PUBLIC_REPOS")
+		mustUnsetenv(t, "CLUSTER_ADMIN_TEAMS")
 
 		proj := createAppProj("team-x")
 		adminPolicies := proj.Spec.Roles[0].Policies
@@ -269,8 +282,8 @@ func TestCreateAppProj(t *testing.T) {
 
 	t.Run("view role policies", func(t *testing.T) {
 		NamespaceCache = newCache()
-		os.Unsetenv("PUBLIC_REPOS")
-		os.Unsetenv("CLUSTER_ADMIN_TEAMS")
+		mustUnsetenv(t, "PUBLIC_REPOS")
+		mustUnsetenv(t, "CLUSTER_ADMIN_TEAMS")
 
 		proj := createAppProj("team-x")
 		viewPolicies := proj.Spec.Roles[1].Policies
@@ -292,8 +305,8 @@ func TestCreateAppProj(t *testing.T) {
 
 	t.Run("admin role groups", func(t *testing.T) {
 		NamespaceCache = newCache()
-		os.Unsetenv("PUBLIC_REPOS")
-		os.Unsetenv("CLUSTER_ADMIN_TEAMS")
+		mustUnsetenv(t, "PUBLIC_REPOS")
+		mustUnsetenv(t, "CLUSTER_ADMIN_TEAMS")
 
 		proj := createAppProj("team-x")
 		adminGroups := proj.Spec.Roles[0].Groups
@@ -310,8 +323,8 @@ func TestCreateAppProj(t *testing.T) {
 
 	t.Run("view role groups include admin groups", func(t *testing.T) {
 		NamespaceCache = newCache()
-		os.Unsetenv("PUBLIC_REPOS")
-		os.Unsetenv("CLUSTER_ADMIN_TEAMS")
+		mustUnsetenv(t, "PUBLIC_REPOS")
+		mustUnsetenv(t, "CLUSTER_ADMIN_TEAMS")
 
 		proj := createAppProj("team-x")
 		viewGroups := proj.Spec.Roles[1].Groups
@@ -325,11 +338,15 @@ func TestCreateAppProj(t *testing.T) {
 			}
 		}
 	})
+}
+
+func TestCreateAppProjResources(t *testing.T) {
+	newCache := setupAppProjTest(t)
 
 	t.Run("namespace blacklist always contains LimitRange", func(t *testing.T) {
 		NamespaceCache = newCache()
-		os.Unsetenv("PUBLIC_REPOS")
-		os.Unsetenv("CLUSTER_ADMIN_TEAMS")
+		mustUnsetenv(t, "PUBLIC_REPOS")
+		mustUnsetenv(t, "CLUSTER_ADMIN_TEAMS")
 
 		proj := createAppProj("team-x")
 		blacklist := proj.Spec.NamespaceResourceBlacklist
@@ -343,8 +360,8 @@ func TestCreateAppProj(t *testing.T) {
 
 	t.Run("non-admin team gets ClusterResourceBlacklist", func(t *testing.T) {
 		NamespaceCache = newCache()
-		os.Unsetenv("PUBLIC_REPOS")
-		os.Unsetenv("CLUSTER_ADMIN_TEAMS")
+		mustUnsetenv(t, "PUBLIC_REPOS")
+		mustUnsetenv(t, "CLUSTER_ADMIN_TEAMS")
 
 		proj := createAppProj("regular-team")
 		if len(proj.Spec.ClusterResourceBlacklist) != 1 {
@@ -360,7 +377,7 @@ func TestCreateAppProj(t *testing.T) {
 
 	t.Run("admin team gets ClusterResourceWhitelist", func(t *testing.T) {
 		NamespaceCache = newCache()
-		os.Unsetenv("PUBLIC_REPOS")
+		mustUnsetenv(t, "PUBLIC_REPOS")
 		t.Setenv("CLUSTER_ADMIN_TEAMS", "admin-team,other-team")
 
 		proj := createAppProj("admin-team")
@@ -378,7 +395,7 @@ func TestCreateAppProj(t *testing.T) {
 	t.Run("PUBLIC_REPOS populates SourceRepos", func(t *testing.T) {
 		NamespaceCache = newCache()
 		t.Setenv("PUBLIC_REPOS", "https://github.com/org/repo1,https://github.com/org/repo2")
-		os.Unsetenv("CLUSTER_ADMIN_TEAMS")
+		mustUnsetenv(t, "CLUSTER_ADMIN_TEAMS")
 
 		proj := createAppProj("team-x")
 		if len(proj.Spec.SourceRepos) != 2 {
@@ -394,8 +411,8 @@ func TestCreateAppProj(t *testing.T) {
 
 	t.Run("empty PUBLIC_REPOS results in nil SourceRepos", func(t *testing.T) {
 		NamespaceCache = newCache()
-		os.Unsetenv("PUBLIC_REPOS")
-		os.Unsetenv("CLUSTER_ADMIN_TEAMS")
+		mustUnsetenv(t, "PUBLIC_REPOS")
+		mustUnsetenv(t, "CLUSTER_ADMIN_TEAMS")
 
 		proj := createAppProj("team-x")
 		if proj.Spec.SourceRepos != nil {
@@ -407,8 +424,8 @@ func TestCreateAppProj(t *testing.T) {
 		NamespaceCache = newCache()
 		NamespaceCache.JoinProject("ns-a", "team-x")
 		NamespaceCache.JoinProject("ns-b", "team-x")
-		os.Unsetenv("PUBLIC_REPOS")
-		os.Unsetenv("CLUSTER_ADMIN_TEAMS")
+		mustUnsetenv(t, "PUBLIC_REPOS")
+		mustUnsetenv(t, "CLUSTER_ADMIN_TEAMS")
 
 		proj := createAppProj("team-x")
 		if len(proj.Spec.Destinations) != 2 {
@@ -428,23 +445,23 @@ func TestCreateAppProj(t *testing.T) {
 
 	t.Run("source namespaces come from NamespaceCache", func(t *testing.T) {
 		NamespaceCache = newCache()
-		NamespaceCache.TrustSource("source-ns", "team-x")
-		os.Unsetenv("PUBLIC_REPOS")
-		os.Unsetenv("CLUSTER_ADMIN_TEAMS")
+		NamespaceCache.TrustSource(testSourceNS, "team-x")
+		mustUnsetenv(t, "PUBLIC_REPOS")
+		mustUnsetenv(t, "CLUSTER_ADMIN_TEAMS")
 
 		proj := createAppProj("team-x")
 		if len(proj.Spec.SourceNamespaces) != 1 {
 			t.Fatalf("expected 1 source namespace, got %d", len(proj.Spec.SourceNamespaces))
 		}
-		if proj.Spec.SourceNamespaces[0] != "source-ns" {
-			t.Errorf("expected source namespace 'source-ns', got %q", proj.Spec.SourceNamespaces[0])
+		if proj.Spec.SourceNamespaces[0] != testSourceNS {
+			t.Errorf("expected source namespace %q, got %q", testSourceNS, proj.Spec.SourceNamespaces[0])
 		}
 	})
 
 	t.Run("no destinations when cache is empty for team", func(t *testing.T) {
 		NamespaceCache = newCache()
-		os.Unsetenv("PUBLIC_REPOS")
-		os.Unsetenv("CLUSTER_ADMIN_TEAMS")
+		mustUnsetenv(t, "PUBLIC_REPOS")
+		mustUnsetenv(t, "CLUSTER_ADMIN_TEAMS")
 
 		proj := createAppProj("team-x")
 		if len(proj.Spec.Destinations) != 0 {
@@ -455,7 +472,7 @@ func TestCreateAppProj(t *testing.T) {
 	t.Run("PUBLIC_REPOS with spaces are trimmed", func(t *testing.T) {
 		NamespaceCache = newCache()
 		t.Setenv("PUBLIC_REPOS", " repo1 , repo2 ")
-		os.Unsetenv("CLUSTER_ADMIN_TEAMS")
+		mustUnsetenv(t, "CLUSTER_ADMIN_TEAMS")
 
 		proj := createAppProj("team-x")
 		if len(proj.Spec.SourceRepos) != 2 {
