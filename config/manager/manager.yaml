@@ -32,6 +32,9 @@ spec:
           envFrom:
             - configMapRef:
                 name: public-repos
+            - configMapRef:
+                name: cluster-admin-teams
+                optional: true
           livenessProbe:
             httpGet:
               path: /healthz
