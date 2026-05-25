@@ -163,7 +163,7 @@ var _ = Describe("Argocduser controller", func() {
 		It("Should update the `argocd-cm` ConfigMap and create required accounts", func() {
 			var expectedKey string
 			cm := &corev1.ConfigMap{}
-			lookup := types.NamespacedName{Name: "argocd-cm", Namespace: argocdAppsNs}
+			lookup := types.NamespacedName{Name: testArgocdCM, Namespace: argocdAppsNs}
 
 			// TODO: Enhance this
 			By("Verifying argocd-cm is updated with accounts.<ACCOUNT-admin>")
@@ -196,7 +196,7 @@ var _ = Describe("Argocduser controller", func() {
 		It("Should update the `argocd-secret` Secret and create required accounts", func() {
 			var expectedKey string
 			sec := &corev1.Secret{}
-			lookup := types.NamespacedName{Name: "argocd-secret", Namespace: argocdAppsNs}
+			lookup := types.NamespacedName{Name: testArgocdSecret, Namespace: argocdAppsNs}
 
 			// Check for admin CI account
 			By("Verifying argocd-secret is updated with accounts.<ACCOUNT-admin>.password")
@@ -379,7 +379,7 @@ var _ = Describe("Argocduser controller", func() {
 		It("Should update the `argocd-cm` ConfigMap and delete required accounts", func() {
 			By("Verifying admin account is removed from argocd-cm")
 			cm := &corev1.ConfigMap{}
-			lookup := types.NamespacedName{Name: "argocd-cm", Namespace: argocdAppsNs}
+			lookup := types.NamespacedName{Name: testArgocdCM, Namespace: argocdAppsNs}
 
 			Eventually(func(g Gomega) {
 				g.Expect(k8sClient.Get(ctx, lookup, cm)).To(Succeed())
@@ -392,7 +392,7 @@ var _ = Describe("Argocduser controller", func() {
 		It("Should update the `argocd-secret` Secret and delete required accounts", func() {
 			By("Verifying passwords are removed from argocd-secret")
 			sec := &corev1.Secret{}
-			lookup := types.NamespacedName{Name: "argocd-secret", Namespace: argocdAppsNs}
+			lookup := types.NamespacedName{Name: testArgocdSecret, Namespace: argocdAppsNs}
 
 			Eventually(func(g Gomega) {
 				g.Expect(k8sClient.Get(ctx, lookup, sec)).To(Succeed())
@@ -567,7 +567,7 @@ var _ = Describe("Argocduser controller", func() {
 		It("Should update the `argocd-cm` ConfigMap and update required accounts", func() {
 			By("Verifying accounts still exist in argocd-cm")
 			cm := &corev1.ConfigMap{}
-			lookup := types.NamespacedName{Name: "argocd-cm", Namespace: argocdAppsNs}
+			lookup := types.NamespacedName{Name: testArgocdCM, Namespace: argocdAppsNs}
 
 			Eventually(func(g Gomega) {
 				g.Expect(k8sClient.Get(ctx, lookup, cm)).To(Succeed())
@@ -582,7 +582,7 @@ var _ = Describe("Argocduser controller", func() {
 		It("Should update the `argocd-secret` Secret and update required accounts", func() {
 			By("Verifying passwords are updated in argocd-secret")
 			sec := &corev1.Secret{}
-			lookup := types.NamespacedName{Name: "argocd-secret", Namespace: argocdAppsNs}
+			lookup := types.NamespacedName{Name: testArgocdSecret, Namespace: argocdAppsNs}
 
 			Eventually(func(g Gomega) {
 				g.Expect(k8sClient.Get(ctx, lookup, sec)).To(Succeed())

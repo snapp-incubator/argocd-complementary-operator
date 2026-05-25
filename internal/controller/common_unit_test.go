@@ -10,7 +10,12 @@ import (
 	"github.com/snapp-incubator/argocd-complementary-operator/pkg/nameset"
 )
 
-const testSourceNS = "source-ns"
+const (
+	testSourceNS = "source-ns"
+	testTeamA    = "team-a"
+	testTeamB    = "team-b"
+	testTeamC    = "team-c"
+)
 
 func mustUnsetenv(t *testing.T, key string) {
 	t.Helper()
@@ -184,38 +189,38 @@ func TestIsTeamClusterAdmin(t *testing.T) {
 	}{
 		{
 			name:     "team is in the list",
-			team:     "team-a",
-			list:     []string{"team-a", "team-b"},
+			team:     testTeamA,
+			list:     []string{testTeamA, testTeamB},
 			expected: true,
 		},
 		{
 			name:     "team is not in the list",
-			team:     "team-c",
-			list:     []string{"team-a", "team-b"},
+			team:     testTeamC,
+			list:     []string{testTeamA, testTeamB},
 			expected: false,
 		},
 		{
 			name:     "empty list",
-			team:     "team-a",
+			team:     testTeamA,
 			list:     []string{},
 			expected: false,
 		},
 		{
 			name:     "nil list",
-			team:     "team-a",
+			team:     testTeamA,
 			list:     nil,
 			expected: false,
 		},
 		{
 			name:     "empty team name",
 			team:     "",
-			list:     []string{"team-a"},
+			list:     []string{testTeamA},
 			expected: false,
 		},
 		{
 			name:     "single item list matching",
-			team:     "team-a",
-			list:     []string{"team-a"},
+			team:     testTeamA,
+			list:     []string{testTeamA},
 			expected: true,
 		},
 	}
@@ -495,13 +500,13 @@ func TestLabelToProjects(t *testing.T) {
 	}{
 		{
 			name:     "single project",
-			label:    "team-a",
-			expected: []string{"team-a"},
+			label:    testTeamA,
+			expected: []string{testTeamA},
 		},
 		{
 			name:     "multiple projects separated by dots",
 			label:    "team-a.team-b.team-c",
-			expected: []string{"team-a", "team-b", "team-c"},
+			expected: []string{testTeamA, testTeamB, testTeamC},
 		},
 		{
 			name:     "empty string",
@@ -511,17 +516,17 @@ func TestLabelToProjects(t *testing.T) {
 		{
 			name:     "trailing dots ignored",
 			label:    "team-a.",
-			expected: []string{"team-a"},
+			expected: []string{testTeamA},
 		},
 		{
 			name:     "leading dots ignored",
 			label:    ".team-a",
-			expected: []string{"team-a"},
+			expected: []string{testTeamA},
 		},
 		{
 			name:     "consecutive dots ignored",
 			label:    "team-a..team-b",
-			expected: []string{"team-a", "team-b"},
+			expected: []string{testTeamA, testTeamB},
 		},
 		{
 			name:     "only dots",

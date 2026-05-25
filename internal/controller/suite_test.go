@@ -53,6 +53,9 @@ const (
 	timeout      = time.Second * 30
 	interval     = time.Millisecond * 100
 	argocdAppsNs = "user-argocd"
+
+	testArgocdCM     = "argocd-cm"
+	testArgocdSecret = "argocd-secret"
 )
 
 var (
@@ -153,7 +156,7 @@ var _ = BeforeSuite(func() {
 	By("Creating argocd-cm ConfigMap")
 	argocdCM := &corev1.ConfigMap{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "argocd-cm",
+			Name:      testArgocdCM,
 			Namespace: argocdAppsNs,
 		},
 		Data: map[string]string{
@@ -161,14 +164,14 @@ var _ = BeforeSuite(func() {
 		},
 	}
 	Expect(k8sClient.Create(ctx, argocdCM)).Should(Succeed())
-	argocdCMLookup := types.NamespacedName{Name: "argocd-cm", Namespace: argocdAppsNs}
+	argocdCMLookup := types.NamespacedName{Name: testArgocdCM, Namespace: argocdAppsNs}
 	Expect(k8sClient.Get(ctx, argocdCMLookup, argocdCM)).Should(Succeed())
 
 	// Create argocd-secret Secret
 	By("Creating argocd-secret Secret")
 	argocdSecret := &corev1.Secret{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      "argocd-secret",
+			Name:      testArgocdSecret,
 			Namespace: argocdAppsNs,
 		},
 		Data: map[string][]byte{
@@ -176,7 +179,7 @@ var _ = BeforeSuite(func() {
 		},
 	}
 	Expect(k8sClient.Create(ctx, argocdSecret)).Should(Succeed())
-	argocdSecretLookup := types.NamespacedName{Name: "argocd-secret", Namespace: argocdAppsNs}
+	argocdSecretLookup := types.NamespacedName{Name: testArgocdSecret, Namespace: argocdAppsNs}
 	Expect(k8sClient.Get(ctx, argocdSecretLookup, argocdSecret)).Should(Succeed())
 
 	// Wait for cache to sync before running tests
