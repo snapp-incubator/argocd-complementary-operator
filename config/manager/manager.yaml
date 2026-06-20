@@ -50,10 +50,12 @@ spec:
           resources:
             limits:
               cpu: 500m
-              # 512Mi was too small for the cold-start informer cache spike on
-              # large clusters (cluster-wide Secret/ConfigMap/Namespace caches),
-              # causing OOMKilled crash-loops on a fresh pod. Bumped for headroom.
-              memory: 2Gi
+              # The controllers cache cluster-wide Secrets/ConfigMaps; on a
+              # cluster with ~33k secrets the cold-start LIST spike exceeded
+              # 512Mi (and 2Gi), OOMKilling a fresh pod. 4Gi covers the spike.
+              # TODO: scope the cache (cache.Options.ByObject -> user-argocd)
+              # so this no longer scales with total cluster secret count.
+              memory: 4Gi
             requests:
               cpu: 100m
               memory: 512Mi
