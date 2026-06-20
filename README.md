@@ -145,6 +145,7 @@ When an `ArgocdUser` is deleted, the operator automatically cleans up:
 |----------|-------------|
 | `PUBLIC_REPOS` | Comma-separated list of public repositories available to all projects |
 | `CLUSTER_ADMIN_TEAMS` | Comma-separated list of teams with cluster-admin privileges |
+| `USER_ARGOCD_NAMESPACE` | Namespace holding the managed AppProjects and the argocd static-user ConfigMap/Secret. Also scopes the manager's Secret/ConfigMap informer caches. Defaults to `user-argocd`. |
 
 ## Instructions
 

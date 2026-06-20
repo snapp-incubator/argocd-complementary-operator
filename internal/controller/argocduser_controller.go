@@ -315,7 +315,7 @@ func (r *ArgocdUserReconciler) reconcileAppProject(ctx context.Context, argocdus
 
 	// Check if AppProject does not exist and create a new one
 	found := &argov1alpha1.AppProject{}
-	err := r.Get(ctx, types.NamespacedName{Name: appProjectName, Namespace: userArgocdNS}, found)
+	err := r.Get(ctx, types.NamespacedName{Name: appProjectName, Namespace: UserArgocdNS}, found)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			logger.Info("Creating the AppProject", "AppProject", appProjectName)
@@ -434,7 +434,7 @@ func (r *ArgocdUserReconciler) UpdateUserArgocdConfig(ctx context.Context, argoc
 	accountKey := "accounts." + argocduser.Name + "-" + roleName + "-ci"
 	expectedValue := "apiKey,login"
 	configMap := &corev1.ConfigMap{}
-	err := r.Get(ctx, types.NamespacedName{Name: userArgocdStaticUserCM, Namespace: userArgocdNS}, configMap)
+	err := r.Get(ctx, types.NamespacedName{Name: userArgocdStaticUserCM, Namespace: UserArgocdNS}, configMap)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			logger.Error(err, "Argocd ConfigMap not found", "ConfigMap", userArgocdStaticUserCM)
@@ -480,7 +480,7 @@ func (r *ArgocdUserReconciler) UpdateUserArgocdConfig(ctx context.Context, argoc
 	}
 
 	secret := &corev1.Secret{}
-	if err = r.Get(ctx, types.NamespacedName{Name: userArgocdSecret, Namespace: userArgocdNS}, secret); err != nil {
+	if err = r.Get(ctx, types.NamespacedName{Name: userArgocdSecret, Namespace: UserArgocdNS}, secret); err != nil {
 		if errors.IsNotFound(err) {
 			logger.Error(err, "Argocd Secret not found", "Secret", userArgocdSecret)
 			return err
@@ -584,7 +584,7 @@ func (r *ArgocdUserReconciler) cleanupResources(ctx context.Context, argocduser 
 func (r *ArgocdUserReconciler) deleteAppProject(ctx context.Context, name string) error {
 	logger := log.FromContext(ctx)
 	appProj := &argov1alpha1.AppProject{}
-	err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: userArgocdNS}, appProj)
+	err := r.Get(ctx, types.NamespacedName{Name: name, Namespace: UserArgocdNS}, appProj)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// AppProj doesn't exist, nothing to clean up
@@ -613,7 +613,7 @@ func (r *ArgocdUserReconciler) deleteAppProject(ctx context.Context, name string
 func (r *ArgocdUserReconciler) removeConfigMapEntries(ctx context.Context, name string) error {
 	logger := log.FromContext(ctx)
 	configMap := &corev1.ConfigMap{}
-	err := r.Get(ctx, types.NamespacedName{Name: userArgocdStaticUserCM, Namespace: userArgocdNS}, configMap)
+	err := r.Get(ctx, types.NamespacedName{Name: userArgocdStaticUserCM, Namespace: UserArgocdNS}, configMap)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			// ConfigMap doesn't exist, nothing to clean up
@@ -639,7 +639,7 @@ func (r *ArgocdUserReconciler) removeConfigMapEntries(ctx context.Context, name 
 func (r *ArgocdUserReconciler) removeSecretEntries(ctx context.Context, name string) error {
 	logger := log.FromContext(ctx)
 	secret := &corev1.Secret{}
-	err := r.Get(ctx, types.NamespacedName{Name: userArgocdSecret, Namespace: userArgocdNS}, secret)
+	err := r.Get(ctx, types.NamespacedName{Name: userArgocdSecret, Namespace: UserArgocdNS}, secret)
 	if err != nil {
 		if errors.IsNotFound(err) {
 			return nil
@@ -671,7 +671,7 @@ func (r *ArgocdUserReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(
 			&corev1.ConfigMap{},
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
-				if obj.GetNamespace() != userArgocdNS || obj.GetName() != userArgocdStaticUserCM {
+				if obj.GetNamespace() != UserArgocdNS || obj.GetName() != userArgocdStaticUserCM {
 					return nil
 				}
 				argocdUserList := &argocduserv1alpha1.ArgocdUserList{}
@@ -692,7 +692,7 @@ func (r *ArgocdUserReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		Watches(
 			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(func(ctx context.Context, obj client.Object) []reconcile.Request {
-				if obj.GetNamespace() != userArgocdNS || obj.GetName() != userArgocdSecret {
+				if obj.GetNamespace() != UserArgocdNS || obj.GetName() != userArgocdSecret {
 					return nil
 				}
 				argocdUserList := &argocduserv1alpha1.ArgocdUserList{}
@@ -717,7 +717,7 @@ func (r *ArgocdUserReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				appProjName := obj.GetName()
 
 				// Only watch AppProjects in the user-argocd namespace
-				if obj.GetNamespace() != userArgocdNS {
+				if obj.GetNamespace() != UserArgocdNS {
 					return nil
 				}
 

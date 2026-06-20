@@ -29,6 +29,11 @@ spec:
           env:
             - name: GODEBUG
               value: multipathtcp=0
+            # Namespace holding the managed AppProjects and argocd static-user
+            # ConfigMap/Secret (also scopes the Secret/ConfigMap caches).
+            # Defaults to user-argocd if unset; set here to make it explicit.
+            - name: USER_ARGOCD_NAMESPACE
+              value: user-argocd
           envFrom:
             - configMapRef:
                 name: public-repos

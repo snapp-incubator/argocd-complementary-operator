@@ -87,10 +87,10 @@ func main() {
 		Cache: cache.Options{
 			ByObject: map[client.Object]cache.ByObject{
 				&corev1.Secret{}: {
-					Namespaces: map[string]cache.Config{"user-argocd": {}},
+					Namespaces: map[string]cache.Config{controller.UserArgocdNS: {}},
 				},
 				&corev1.ConfigMap{}: {
-					Namespaces: map[string]cache.Config{"user-argocd": {}},
+					Namespaces: map[string]cache.Config{controller.UserArgocdNS: {}},
 				},
 			},
 		},
