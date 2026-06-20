@@ -251,14 +251,17 @@ func TestCreateAppProjStructure(t *testing.T) {
 		if proj.Namespace != userArgocdNS {
 			t.Errorf("expected namespace %q, got %q", userArgocdNS, proj.Namespace)
 		}
-		if len(proj.Spec.Roles) != 2 {
-			t.Fatalf("expected 2 roles, got %d", len(proj.Spec.Roles))
+		if len(proj.Spec.Roles) != 3 {
+			t.Fatalf("expected 3 roles, got %d", len(proj.Spec.Roles))
 		}
 		if proj.Spec.Roles[0].Name != "my-team-admin" {
 			t.Errorf("expected admin role name 'my-team-admin', got %q", proj.Spec.Roles[0].Name)
 		}
 		if proj.Spec.Roles[1].Name != "my-team-view" {
 			t.Errorf("expected view role name 'my-team-view', got %q", proj.Spec.Roles[1].Name)
+		}
+		if proj.Spec.Roles[2].Name != "my-team-sync" {
+			t.Errorf("expected sync role name 'my-team-sync', got %q", proj.Spec.Roles[2].Name)
 		}
 	})
 
@@ -340,6 +343,48 @@ func TestCreateAppProjStructure(t *testing.T) {
 		for i, g := range expectedGroups {
 			if viewGroups[i] != g {
 				t.Errorf("view group %d: expected %q, got %q", i, g, viewGroups[i])
+			}
+		}
+	})
+
+	t.Run("sync role policies", func(t *testing.T) {
+		NamespaceCache = newCache()
+		mustUnsetenv(t, "PUBLIC_REPOS")
+		mustUnsetenv(t, "CLUSTER_ADMIN_TEAMS")
+
+		proj := createAppProj("team-x")
+		syncPolicies := proj.Spec.Roles[2].Policies
+
+		expectedPolicies := []string{
+			"p, proj:team-x:team-x-sync, applications, get, team-x/*, allow",
+			"p, proj:team-x:team-x-sync, applications, sync, team-x/*, allow",
+			"p, proj:team-x:team-x-sync, repositories, get, team-x/*, allow",
+			"p, proj:team-x:team-x-sync, logs, get, team-x/*, allow",
+		}
+		if len(syncPolicies) != len(expectedPolicies) {
+			t.Fatalf("expected %d sync policies, got %d", len(expectedPolicies), len(syncPolicies))
+		}
+		for i, p := range expectedPolicies {
+			if syncPolicies[i] != p {
+				t.Errorf("sync policy %d: expected %q, got %q", i, p, syncPolicies[i])
+			}
+		}
+	})
+
+	t.Run("sync role groups", func(t *testing.T) {
+		NamespaceCache = newCache()
+		mustUnsetenv(t, "PUBLIC_REPOS")
+		mustUnsetenv(t, "CLUSTER_ADMIN_TEAMS")
+
+		proj := createAppProj("team-x")
+		syncGroups := proj.Spec.Roles[2].Groups
+		expectedGroups := []string{"team-x-sync", "team-x-sync-ci"}
+		if len(syncGroups) != len(expectedGroups) {
+			t.Fatalf("expected %d sync groups, got %d", len(expectedGroups), len(syncGroups))
+		}
+		for i, g := range expectedGroups {
+			if syncGroups[i] != g {
+				t.Errorf("sync group %d: expected %q, got %q", i, g, syncGroups[i])
 			}
 		}
 	})

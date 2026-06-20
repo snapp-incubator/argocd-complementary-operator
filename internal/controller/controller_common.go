@@ -149,6 +149,19 @@ func createAppProj(team string) *argov1alpha1.AppProject {
 						"p, proj:" + team + ":" + team + "-view, logs, get, " + team + "/*, allow",
 					},
 				},
+				{
+					Groups: []string{
+						team + "-sync",
+						team + "-sync" + "-ci",
+					},
+					Name: team + "-sync",
+					Policies: []string{
+						"p, proj:" + team + ":" + team + "-sync, applications, get, " + team + "/*, allow",
+						"p, proj:" + team + ":" + team + "-sync, applications, sync, " + team + "/*, allow",
+						"p, proj:" + team + ":" + team + "-sync, repositories, get, " + team + "/*, allow",
+						"p, proj:" + team + ":" + team + "-sync, logs, get, " + team + "/*, allow",
+					},
+				},
 			},
 		},
 	}

@@ -29,6 +29,7 @@ type ArgocdUserSpec struct {
 	// Important: Run "make" to regenerate code after modifying this file
 	Admin ArgocdCIAdmin `json:"admin,omitempty"`
 	View  ArgocdCIView  `json:"view,omitempty"`
+	Sync  ArgocdCISync  `json:"sync,omitempty"`
 }
 type ArgocdCIAdmin struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
@@ -38,6 +39,16 @@ type ArgocdCIAdmin struct {
 	Users []string `json:"users,omitempty"`
 }
 type ArgocdCIView struct {
+	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
+	// Important: Run "make" to regenerate code after modifying this file
+	CIPass string `json:"ciPass,omitempty"`
+	// ArgocdToken string `json:"argocdToken,omitempty"`
+	Users []string `json:"users,omitempty"`
+}
+
+// ArgocdCISync grants view access plus the ability to trigger application
+// syncs (view + applications,sync), without the repo/exec rights of admin.
+type ArgocdCISync struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 	CIPass string `json:"ciPass,omitempty"`
