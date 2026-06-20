@@ -24,10 +24,13 @@ import (
 	// to ensure that exec-entrypoint and run can make use of them.
 	_ "k8s.io/client-go/plugin/pkg/client/auth"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	utilruntime "k8s.io/apimachinery/pkg/util/runtime"
 	clientgoscheme "k8s.io/client-go/kubernetes/scheme"
 	ctrl "sigs.k8s.io/controller-runtime"
+	"sigs.k8s.io/controller-runtime/pkg/cache"
+	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/healthz"
 	"sigs.k8s.io/controller-runtime/pkg/log/zap"
 
@@ -75,6 +78,22 @@ func main() {
 		HealthProbeBindAddress: probeAddr,
 		LeaderElection:         enableLeaderElection,
 		LeaderElectionID:       "e9600511.snappcloud.io",
+		// Scope the Secret/ConfigMap informer caches to the user-argocd
+		// namespace. The operator only ever reads the argocd static-user
+		// ConfigMap and Secret there, but the default cache would watch every
+		// Secret/ConfigMap cluster-wide (tens of thousands on large clusters),
+		// blowing up cold-start memory and OOMKilling the manager. Restricting
+		// these two types keeps memory bounded regardless of cluster size.
+		Cache: cache.Options{
+			ByObject: map[client.Object]cache.ByObject{
+				&corev1.Secret{}: {
+					Namespaces: map[string]cache.Config{"user-argocd": {}},
+				},
+				&corev1.ConfigMap{}: {
+					Namespaces: map[string]cache.Config{"user-argocd": {}},
+				},
+			},
+		},
 	})
 	if err != nil {
 		setupLog.Error(err, "unable to start manager")
