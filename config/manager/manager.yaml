@@ -50,14 +50,12 @@ spec:
           resources:
             limits:
               cpu: 500m
-              # The controllers cache cluster-wide Secrets/ConfigMaps; on a
-              # cluster with ~33k secrets the cold-start LIST spike exceeded
-              # 512Mi (and 2Gi), OOMKilling a fresh pod. 4Gi covers the spike.
-              # TODO: scope the cache (cache.Options.ByObject -> user-argocd)
-              # so this no longer scales with total cluster secret count.
-              memory: 4Gi
+              # Since v0.5.1 the Secret/ConfigMap caches are scoped to
+              # user-argocd (cache.Options.ByObject), so steady-state usage is
+              # ~30Mi regardless of cluster size. 512Mi is ample headroom.
+              memory: 512Mi
             requests:
               cpu: 100m
-              memory: 512Mi
+              memory: 128Mi
       serviceAccountName: controller-manager
       terminationGracePeriodSeconds: 10
