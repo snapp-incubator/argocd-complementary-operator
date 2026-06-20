@@ -9,8 +9,12 @@ spec:
   template:
     spec:
       containers:
+      # kube-rbac-proxy is pulled from quay.io (brancz, the upstream maintainer):
+      # the gcr.io/kubebuilder mirror was deprecated and no longer serves these
+      # tags, and the SnappCloud Harbor `gcr` proxy-cache can't fetch them. The
+      # `quay` proxy-cache resolves this image fine.
       - name: kube-rbac-proxy
-        image: gcr.io/kubebuilder/kube-rbac-proxy:v0.16.0
+        image: quay.io/brancz/kube-rbac-proxy:v0.16.0
         args:
         - "--secure-listen-address=0.0.0.0:8443"
         - "--upstream=http://127.0.0.1:8080/"
