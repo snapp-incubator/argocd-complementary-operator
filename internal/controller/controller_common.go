@@ -18,7 +18,7 @@ import (
 )
 
 const (
-	userArgocdNS           = "user-argocd"
+	defaultUserArgocdNS    = "user-argocd"
 	userArgocdStaticUserCM = "argocd-cm"
 	userArgocdSecret       = "argocd-secret"
 	argocdUserFinalizer    = "argocd.snappcloud.io/finalizer"
@@ -32,6 +32,21 @@ const (
 	// in the labeled namespace can belongs to the snapppay argo project.
 	SourceLabel = "argocd.snappcloud.io/source"
 )
+
+// UserArgocdNS is the namespace holding the AppProjects and the argocd
+// static-user ConfigMap/Secret this operator manages. Configurable via the
+// USER_ARGOCD_NAMESPACE env var; defaults to "user-argocd". It is also used to
+// scope the manager's Secret/ConfigMap informer caches (see cmd/main.go).
+var UserArgocdNS = userArgocdNamespace()
+
+// userArgocdNamespace resolves the managed namespace from USER_ARGOCD_NAMESPACE,
+// falling back to defaultUserArgocdNS when the env var is empty or unset.
+func userArgocdNamespace() string {
+	if ns := os.Getenv("USER_ARGOCD_NAMESPACE"); ns != "" {
+		return ns
+	}
+	return defaultUserArgocdNS
+}
 
 var NamespaceCache = &SafeNsCache{
 	lock:       sync.RWMutex{},
@@ -113,7 +128,7 @@ func createAppProj(team string) *argov1alpha1.AppProject {
 	appProj := &argov1alpha1.AppProject{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      team,
-			Namespace: userArgocdNS,
+			Namespace: UserArgocdNS,
 		},
 		Spec: argov1alpha1.AppProjectSpec{
 			SourceRepos:      repo_list,

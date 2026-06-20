@@ -171,7 +171,7 @@ func (c *SafeNsCache) InitOrPass(r *NamespaceReconciler, ctx context.Context) er
 		c.sources = make(map[string]nameset.Nameset[string])
 
 		if err := r.List(ctx, appProjList,
-			&client.ListOptions{Namespace: userArgocdNS},
+			&client.ListOptions{Namespace: UserArgocdNS},
 		); err != nil {
 			c.initErr = err
 			return
@@ -339,7 +339,7 @@ func (r *NamespaceReconciler) reconcileAppProject(ctx context.Context, logger lo
 
 	// Check if AppProject does not exist and create a new one
 	found := &argov1alpha1.AppProject{}
-	if err := r.Get(ctx, types.NamespacedName{Name: team, Namespace: userArgocdNS}, found); err != nil {
+	if err := r.Get(ctx, types.NamespacedName{Name: team, Namespace: UserArgocdNS}, found); err != nil {
 		if errors.IsNotFound(err) {
 			logger.Info("AppProject not found, skipping update (will be created by ArgocdUser)", "AppProject", team)
 			return nil

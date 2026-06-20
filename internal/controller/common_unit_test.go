@@ -24,6 +24,22 @@ func mustUnsetenv(t *testing.T, key string) {
 	}
 }
 
+func TestUserArgocdNamespace(t *testing.T) {
+	t.Run("defaults when unset", func(t *testing.T) {
+		t.Setenv("USER_ARGOCD_NAMESPACE", "")
+		if got := userArgocdNamespace(); got != defaultUserArgocdNS {
+			t.Errorf("expected default %q, got %q", defaultUserArgocdNS, got)
+		}
+	})
+
+	t.Run("honors env override", func(t *testing.T) {
+		t.Setenv("USER_ARGOCD_NAMESPACE", "custom-argocd")
+		if got := userArgocdNamespace(); got != "custom-argocd" {
+			t.Errorf("expected %q, got %q", "custom-argocd", got)
+		}
+	})
+}
+
 func setupAppProjTest(t *testing.T) func() *SafeNsCache {
 	t.Helper()
 	origCache := NamespaceCache
@@ -248,8 +264,8 @@ func TestCreateAppProjStructure(t *testing.T) {
 		if proj.Name != "my-team" {
 			t.Errorf("expected name 'my-team', got %q", proj.Name)
 		}
-		if proj.Namespace != userArgocdNS {
-			t.Errorf("expected namespace %q, got %q", userArgocdNS, proj.Namespace)
+		if proj.Namespace != UserArgocdNS {
+			t.Errorf("expected namespace %q, got %q", UserArgocdNS, proj.Namespace)
 		}
 		if len(proj.Spec.Roles) != 3 {
 			t.Fatalf("expected 3 roles, got %d", len(proj.Spec.Roles))
