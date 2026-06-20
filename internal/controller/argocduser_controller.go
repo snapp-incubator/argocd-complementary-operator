@@ -411,6 +411,16 @@ func (r *ArgocdUserReconciler) reconcileArgocdStaticUser(ctx context.Context, ar
 		return err
 	}
 
+	// For sync role (view + applications,sync)
+	if err := r.UpdateUserArgocdConfig(ctx, argocduser, "sync", argocduser.Spec.Sync.CIPass); err != nil {
+		logger.Error(err, "Failed to create argocd static user configs", "ArgocdUser", argocduser.Name, "role", "sync")
+		return err
+	}
+	if err := r.AddArgoUsersToGroup(ctx, argocduser, "sync", argocduser.Spec.Sync.Users); err != nil {
+		logger.Error(err, "Failed to update OpenShift groups for Argocduser", "ArgocdUser", argocduser.Name, "role", "sync")
+		return err
+	}
+
 	return nil
 }
 
@@ -613,9 +623,10 @@ func (r *ArgocdUserReconciler) removeConfigMapEntries(ctx context.Context, name 
 	}
 
 	patch := client.MergeFrom(configMap.DeepCopy())
-	// Delete both admin and view accounts
+	// Delete admin, view and sync accounts
 	delete(configMap.Data, "accounts."+name+"-admin-ci")
 	delete(configMap.Data, "accounts."+name+"-view-ci")
+	delete(configMap.Data, "accounts."+name+"-sync-ci")
 
 	if err := r.Patch(ctx, configMap, patch); err != nil {
 		logger.Error(err, "Failed to remove accounts from ConfigMap", "ArgocdUser", name)
@@ -639,6 +650,7 @@ func (r *ArgocdUserReconciler) removeSecretEntries(ctx context.Context, name str
 	secretPatch := client.MergeFrom(secret.DeepCopy())
 	delete(secret.Data, "accounts."+name+"-admin-ci.password")
 	delete(secret.Data, "accounts."+name+"-view-ci.password")
+	delete(secret.Data, "accounts."+name+"-sync-ci.password")
 
 	if err := r.Patch(ctx, secret, secretPatch); err != nil {
 		logger.Error(err, "Failed to remove passwords from Secret", "ArgocdUser", name)
@@ -732,7 +744,7 @@ func (r *ArgocdUserReconciler) SetupWithManager(mgr ctrl.Manager) error {
 				// TODO: Update to use labels instead of extracting name with suffix
 
 				// Check if this Group is managed by an ArgocdUser
-				// Group naming: <argocduser-name>-admin or <argocduser-name>-view
+				// Group naming: <argocduser-name>-admin, <argocduser-name>-view or <argocduser-name>-sync
 				groupName := obj.GetName()
 
 				// Extract ArgocdUser name from Group name
@@ -741,6 +753,8 @@ func (r *ArgocdUserReconciler) SetupWithManager(mgr ctrl.Manager) error {
 					argocduserName = strings.TrimSuffix(groupName, "-admin")
 				} else if strings.HasSuffix(groupName, "-view") {
 					argocduserName = strings.TrimSuffix(groupName, "-view")
+				} else if strings.HasSuffix(groupName, "-sync") {
+					argocduserName = strings.TrimSuffix(groupName, "-sync")
 				} else {
 					// Not a Group we manage
 					return nil

@@ -15,7 +15,7 @@ Also, it creates [ArgoCD projects](https://argo-cd.readthedocs.io/en/stable/user
 
 This operator extends ArgoCD functionality by providing:
 
-- **ArgocdUser CRD** - Create static ArgoCD users with admin/view roles and CI credentials
+- **ArgocdUser CRD** - Create static ArgoCD users with admin/sync/view roles and CI credentials
 - **Automatic AppProject Management** - Projects are automatically created and configured based on ArgocdUser resources
 - **Namespace-based Configuration** - Use labels on namespaces to define project destinations and application sources
 - **RBAC Integration** - Automatic ClusterRole and ClusterRoleBinding creation for user access control
@@ -37,7 +37,7 @@ Watches `ArgocdUser` resources and manages:
 | **Secret** (`argocd-secret`) | Hashed passwords for CI users |
 | **ClusterRole** | RBAC rules allowing users to view/edit their ArgocdUser |
 | **ClusterRoleBinding** | Binds admin users to the ClusterRole |
-| **Group** (OpenShift only) | OpenShift groups for admin and view users |
+| **Group** (OpenShift only) | OpenShift groups for admin, sync and view users |
 
 ### Namespace Controller
 
@@ -79,7 +79,7 @@ metadata:
 
 ### ArgoCD Users
 
-Create an `ArgocdUser` to set up a team with admin and view roles:
+Create an `ArgocdUser` to set up a team with admin, sync and view roles:
 
 ```yaml
 apiVersion: argocd.snappcloud.io/v1alpha1
@@ -97,6 +97,10 @@ spec:
     users:
       - dev1@example.com
       - dev2@example.com
+  sync:
+    ciPass: "secure-ci-password-for-sync"
+    users:
+      - dev3@example.com
 ```
 
 This creates:
@@ -104,12 +108,15 @@ This creates:
 1. **AppProject** `team-a` with:
    - Admin role: full access to applications, repositories, and exec
    - View role: read-only access to applications, repositories, and logs
+   - Sync role: view access plus the ability to trigger application syncs
+     (read-only + `applications, sync`), without the repo/exec rights of admin
    - Destinations from labeled namespaces
    - Source namespaces from labeled namespaces
 
 2. **Static users** in ArgoCD:
    - `team-a-admin-ci` - for CI/CD pipelines with admin access
    - `team-a-view-ci` - for CI/CD pipelines with view access
+   - `team-a-sync-ci` - for CI/CD pipelines that need to trigger syncs
 
 3. **RBAC resources**:
    - ClusterRole allowing access to the ArgocdUser resource
@@ -118,6 +125,7 @@ This creates:
 4. **OpenShift Groups** (if running on OpenShift):
    - `team-a-admin` - contains admin users
    - `team-a-view` - contains view users
+   - `team-a-sync` - contains sync users
 
 ### Cleanup
 

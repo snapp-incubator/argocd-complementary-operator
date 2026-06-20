@@ -55,6 +55,22 @@ spec:
                       type: string
                     type: array
                 type: object
+              sync:
+                description: |-
+                  ArgocdCISync grants view access plus the ability to trigger application
+                  syncs (view + applications,sync), without the repo/exec rights of admin.
+                properties:
+                  ciPass:
+                    description: |-
+                      INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
+                      Important: Run "make" to regenerate code after modifying this file
+                    type: string
+                  users:
+                    description: ArgocdToken string `json:"argocdToken,omitempty"`
+                    items:
+                      type: string
+                    type: array
+                type: object
               view:
                 properties:
                   ciPass:
