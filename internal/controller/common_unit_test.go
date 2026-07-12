@@ -374,6 +374,9 @@ func TestCreateAppProjStructure(t *testing.T) {
 		expectedPolicies := []string{
 			"p, proj:team-x:team-x-sync, applications, get, team-x/*, allow",
 			"p, proj:team-x:team-x-sync, applications, sync, team-x/*, allow",
+			"p, proj:team-x:team-x-sync, applications, action/apps/Deployment/restart, team-x/*, allow",
+			"p, proj:team-x:team-x-sync, applications, action/apps/StatefulSet/restart, team-x/*, allow",
+			"p, proj:team-x:team-x-sync, applications, action/apps/DaemonSet/restart, team-x/*, allow",
 			"p, proj:team-x:team-x-sync, repositories, get, team-x/*, allow",
 			"p, proj:team-x:team-x-sync, logs, get, team-x/*, allow",
 		}
