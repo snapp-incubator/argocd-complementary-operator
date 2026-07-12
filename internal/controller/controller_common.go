@@ -173,6 +173,9 @@ func createAppProj(team string) *argov1alpha1.AppProject {
 					Policies: []string{
 						"p, proj:" + team + ":" + team + "-sync, applications, get, " + team + "/*, allow",
 						"p, proj:" + team + ":" + team + "-sync, applications, sync, " + team + "/*, allow",
+						"p, proj:" + team + ":" + team + "-sync, applications, action/apps/Deployment/restart, " + team + "/*, allow",
+						"p, proj:" + team + ":" + team + "-sync, applications, action/apps/StatefulSet/restart, " + team + "/*, allow",
+						"p, proj:" + team + ":" + team + "-sync, applications, action/apps/DaemonSet/restart, " + team + "/*, allow",
 						"p, proj:" + team + ":" + team + "-sync, repositories, get, " + team + "/*, allow",
 						"p, proj:" + team + ":" + team + "-sync, logs, get, " + team + "/*, allow",
 					},
