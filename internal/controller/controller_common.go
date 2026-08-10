@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 
@@ -23,6 +24,15 @@ const (
 	userArgocdSecret       = "argocd-secret"
 	argocdUserFinalizer    = "argocd.snappcloud.io/finalizer"
 
+	// groupMembershipAuthoritativeEnv toggles whether this operator exclusively
+	// owns the OpenShift Groups it manages. See groupMembershipAuthoritative.
+	groupMembershipAuthoritativeEnv = "GROUP_MEMBERSHIP_AUTHORITATIVE"
+
+	// eventUserSampleSize caps how many usernames are named in an Event. Group
+	// drift routinely runs into the dozens and the Kubernetes event message
+	// limit is around 1KiB, so the rest are reported as a count.
+	eventUserSampleSize = 5
+
 	// move a namespace into a argocd appproj using the label.
 	// for example argocd.snappcloud.io/appproj: snapppay means snapppay argo project
 	// can deploy resources into the labeled namespace.
@@ -32,6 +42,10 @@ const (
 	// in the labeled namespace can belongs to the snapppay argo project.
 	SourceLabel = "argocd.snappcloud.io/source"
 )
+
+// groupRoles are the roles this operator manages, one OpenShift Group each,
+// named "<argocduser>-<role>".
+var groupRoles = []string{"admin", "view", "sync"}
 
 // UserArgocdNS is the namespace holding the AppProjects and the argocd
 // static-user ConfigMap/Secret this operator manages. Configurable via the
@@ -46,6 +60,67 @@ func userArgocdNamespace() string {
 		return ns
 	}
 	return defaultUserArgocdNS
+}
+
+// groupMembershipAuthoritative reports whether the ArgocdUser spec is the sole
+// source of truth for the OpenShift Groups this operator manages.
+//
+// When false (the default) membership is merged: users declared on the spec are
+// added, and anyone added out-of-band — `oc adm groups add-users`, a Group that
+// predates the CR, a name removed from git after the fact — is left in place.
+// That is how a member removed from an ArgocdUser keeps their ArgoCD role
+// indefinitely, so the drift is reported via a log line, an Event, and the
+// argocduser_group_undeclared_members metric instead.
+//
+// When true the operator prunes undeclared members and deletes the Groups when
+// the ArgocdUser goes away. Turn it on only once the declarations match reality:
+// the same Groups can back namespace RoleBindings, so pruning revokes cluster
+// access as well as the ArgoCD role.
+func groupMembershipAuthoritative() bool {
+	authoritative, err := strconv.ParseBool(os.Getenv(groupMembershipAuthoritativeEnv))
+	if err != nil {
+		return false
+	}
+	return authoritative
+}
+
+// desiredGroupUsers computes the membership an OpenShift Group should end up
+// with, alongside the members it currently holds that the ArgocdUser does not
+// declare. The undeclared list is reported in both modes — it is the drift —
+// but only removed from the desired membership when authoritative is true.
+func desiredGroupUsers(existing, declared []string, authoritative bool) (desired, undeclared []string) {
+	declaredSet := nameset.New[string]()
+	for _, user := range declared {
+		declaredSet.Add(user)
+	}
+
+	undeclaredSet := nameset.New[string]()
+	for _, user := range existing {
+		if !declaredSet.Contains(user) {
+			undeclaredSet.Add(user)
+		}
+	}
+
+	undeclared = make([]string, 0, undeclaredSet.Len())
+	for user := range undeclaredSet.All() {
+		undeclared = append(undeclared, user)
+	}
+	slices.Sort(undeclared)
+
+	if authoritative {
+		// mergeStringSlices with nothing to merge is just sort + dedupe.
+		return mergeStringSlices(declared, nil), undeclared
+	}
+	return mergeStringSlices(existing, declared), undeclared
+}
+
+// summarizeUsers renders at most sample usernames, reporting the remainder as a
+// count so the result stays inside the Kubernetes event message limit.
+func summarizeUsers(users []string, sample int) string {
+	if len(users) <= sample {
+		return strings.Join(users, ", ")
+	}
+	return fmt.Sprintf("%s and %d more", strings.Join(users[:sample], ", "), len(users)-sample)
 }
 
 var NamespaceCache = &SafeNsCache{
