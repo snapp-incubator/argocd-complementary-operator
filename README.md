@@ -148,9 +148,23 @@ truth: undeclared members are pruned (a `GroupMembersPruned` Event records who),
 out-of-band edits are reverted on the next reconcile — the operator watches the
 Groups — and the Groups are deleted with their `ArgocdUser`.
 
-Roll it out per cluster, and only once the gauge shows the declarations match
-reality. The same Groups are often referenced by namespace `RoleBinding`s, so
-pruning can revoke `oc`/`kubectl` access as well as the ArgoCD role.
+Because that env var applies to every project on the cluster at once, a single
+`ArgocdUser` can override it in either direction:
+
+```yaml
+metadata:
+  annotations:
+    argocd.snappcloud.io/authoritative-groups: "true"
+```
+
+So one project can be tightened while the rest of the cluster keeps merging, or
+one project exempted on a cluster that is otherwise strict. An absent or
+unparseable annotation falls back to the env var.
+
+Roll it out project by project, and only once the gauge shows a project's
+declarations match reality. The same Groups are often referenced by namespace
+`RoleBinding`s, so pruning can revoke `oc`/`kubectl` access as well as the
+ArgoCD role.
 
 ### Cleanup
 
@@ -173,7 +187,7 @@ When an `ArgocdUser` is deleted, the operator automatically cleans up:
 | `PUBLIC_REPOS` | Comma-separated list of public repositories available to all projects |
 | `CLUSTER_ADMIN_TEAMS` | Comma-separated list of teams with cluster-admin privileges |
 | `USER_ARGOCD_NAMESPACE` | Namespace holding the managed AppProjects and the argocd static-user ConfigMap/Secret. Also scopes the manager's Secret/ConfigMap informer caches. Defaults to `user-argocd`. |
-| `GROUP_MEMBERSHIP_AUTHORITATIVE` | Makes the `ArgocdUser` spec the sole source of truth for its OpenShift Groups: prunes undeclared members and deletes the Groups on cleanup. Defaults to `false`, which merges membership and only reports drift. See [Group membership](#group-membership). |
+| `GROUP_MEMBERSHIP_AUTHORITATIVE` | Cluster-wide default for whether the `ArgocdUser` spec is the sole source of truth for its OpenShift Groups: prunes undeclared members and deletes the Groups on cleanup. Defaults to `false`, which merges membership and only reports drift. Overridable per project with the `argocd.snappcloud.io/authoritative-groups` annotation. See [Group membership](#group-membership). |
 
 ## Instructions
 

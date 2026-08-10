@@ -24,9 +24,16 @@ const (
 	userArgocdSecret       = "argocd-secret"
 	argocdUserFinalizer    = "argocd.snappcloud.io/finalizer"
 
-	// groupMembershipAuthoritativeEnv toggles whether this operator exclusively
-	// owns the OpenShift Groups it manages. See groupMembershipAuthoritative.
+	// groupMembershipAuthoritativeEnv sets the cluster-wide default for whether
+	// this operator exclusively owns the OpenShift Groups it manages. See
+	// groupMembershipAuthoritative.
 	groupMembershipAuthoritativeEnv = "GROUP_MEMBERSHIP_AUTHORITATIVE"
+
+	// GroupMembershipAuthoritativeAnnotation overrides that default for a single
+	// ArgocdUser, in either direction — a strict project on an otherwise merging
+	// cluster, or an exemption on a strict one. See
+	// groupMembershipAuthoritativeFor.
+	GroupMembershipAuthoritativeAnnotation = "argocd.snappcloud.io/authoritative-groups"
 
 	// eventUserSampleSize caps how many usernames are named in an Event. Group
 	// drift routinely runs into the dozens and the Kubernetes event message
@@ -80,6 +87,22 @@ func groupMembershipAuthoritative() bool {
 	authoritative, err := strconv.ParseBool(os.Getenv(groupMembershipAuthoritativeEnv))
 	if err != nil {
 		return false
+	}
+	return authoritative
+}
+
+// groupMembershipAuthoritativeFor resolves the mode for a single ArgocdUser.
+// The annotation wins over the cluster-wide default whenever it is present and
+// parseable, which is what lets a cluster tighten one project at a time instead
+// of revoking every undeclared membership at once.
+func groupMembershipAuthoritativeFor(annotations map[string]string, clusterDefault bool) bool {
+	value, ok := annotations[GroupMembershipAuthoritativeAnnotation]
+	if !ok {
+		return clusterDefault
+	}
+	authoritative, err := strconv.ParseBool(value)
+	if err != nil {
+		return clusterDefault
 	}
 	return authoritative
 }

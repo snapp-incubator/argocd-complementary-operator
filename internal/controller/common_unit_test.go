@@ -18,6 +18,9 @@ const (
 
 	testUndeclaredUser = "pouya@snapp-box.com"
 	testDeclaredUser   = "sina@snapp-box.com"
+
+	testTrue  = "true"
+	testFalse = "false"
 )
 
 func mustUnsetenv(t *testing.T, key string) {
@@ -626,10 +629,10 @@ func TestGroupMembershipAuthoritative(t *testing.T) {
 	}{
 		{name: "defaults to merge when unset", unset: true, expected: false},
 		{name: "empty is merge", value: "", expected: false},
-		{name: "true", value: "true", expected: true},
+		{name: testTrue, value: testTrue, expected: true},
 		{name: "True", value: "True", expected: true},
 		{name: "1", value: "1", expected: true},
-		{name: "false", value: "false", expected: false},
+		{name: testFalse, value: testFalse, expected: false},
 		{name: "garbage falls back to merge", value: "yes-please", expected: false},
 	}
 
@@ -760,6 +763,55 @@ func TestSummarizeUsers(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			if got := summarizeUsers(tt.users, tt.sample); got != tt.expected {
 				t.Errorf("expected %q, got %q", tt.expected, got)
+			}
+		})
+	}
+}
+
+func TestGroupMembershipAuthoritativeFor(t *testing.T) {
+	tests := []struct {
+		name           string
+		annotations    map[string]string
+		clusterDefault bool
+		expected       bool
+	}{
+		{name: "no annotations falls back to the cluster default", annotations: nil, clusterDefault: true, expected: true},
+		{
+			name:           "unrelated annotations fall back",
+			annotations:    map[string]string{"other": testTrue},
+			clusterDefault: false,
+			expected:       false,
+		},
+		{
+			name:           "opts a single project in on a merging cluster",
+			annotations:    map[string]string{GroupMembershipAuthoritativeAnnotation: testTrue},
+			clusterDefault: false,
+			expected:       true,
+		},
+		{
+			name:           "exempts a single project on a strict cluster",
+			annotations:    map[string]string{GroupMembershipAuthoritativeAnnotation: testFalse},
+			clusterDefault: true,
+			expected:       false,
+		},
+		{
+			name:           "garbage falls back to the cluster default",
+			annotations:    map[string]string{GroupMembershipAuthoritativeAnnotation: "sure"},
+			clusterDefault: true,
+			expected:       true,
+		},
+		{
+			name:           "empty value falls back to the cluster default",
+			annotations:    map[string]string{GroupMembershipAuthoritativeAnnotation: ""},
+			clusterDefault: false,
+			expected:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := groupMembershipAuthoritativeFor(tt.annotations, tt.clusterDefault); got != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, got)
 			}
 		})
 	}

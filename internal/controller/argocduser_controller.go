@@ -55,9 +55,11 @@ type ArgocdUserReconciler struct {
 	Recorder          record.EventRecorder
 	mu                sync.Mutex
 	GroupCRDInstalled bool
-	// GroupMembershipAuthoritative makes the ArgocdUser spec the sole source of
-	// truth for the OpenShift Groups this operator manages. Resolved from the
-	// GROUP_MEMBERSHIP_AUTHORITATIVE env var in SetupWithManager; see
+	// GroupMembershipAuthoritative is the cluster-wide default for whether the
+	// ArgocdUser spec is the sole source of truth for the OpenShift Groups this
+	// operator manages. Resolved from the GROUP_MEMBERSHIP_AUTHORITATIVE env var
+	// in SetupWithManager, and overridable per ArgocdUser through the
+	// argocd.snappcloud.io/authoritative-groups annotation. See
 	// groupMembershipAuthoritative for what it changes.
 	GroupMembershipAuthoritative bool
 }
@@ -554,23 +556,24 @@ func (r *ArgocdUserReconciler) ReconcileArgoUsersGroup(ctx context.Context, argo
 		}
 	}
 
-	desiredUsers, undeclaredUsers := desiredGroupUsers(group.Users, argoUsers, r.GroupMembershipAuthoritative)
+	authoritative := groupMembershipAuthoritativeFor(argocduser.Annotations, r.GroupMembershipAuthoritative)
+	desiredUsers, undeclaredUsers := desiredGroupUsers(group.Users, argoUsers, authoritative)
 	undeclaredGroupMembers.WithLabelValues(argocduser.Name, roleName, groupName).Set(float64(len(undeclaredUsers)))
 
 	if len(undeclaredUsers) > 0 {
-		if r.GroupMembershipAuthoritative {
+		if authoritative {
 			logger.Info("Removing members that the ArgocdUser does not declare",
 				"Group", groupName, "prunedCount", len(undeclaredUsers), "pruned", undeclaredUsers)
 			r.eventf(argocduser, corev1.EventTypeNormal, "GroupMembersPruned",
 				"Removed %d undeclared member(s) from Group %s: %s",
 				len(undeclaredUsers), groupName, summarizeUsers(undeclaredUsers, eventUserSampleSize))
 		} else {
-			logger.Info("Group holds members the ArgocdUser does not declare; keeping them because "+groupMembershipAuthoritativeEnv+" is false",
+			logger.Info("Group holds members the ArgocdUser does not declare; keeping them because group membership is not authoritative here",
 				"Group", groupName, "undeclaredCount", len(undeclaredUsers), "undeclared", undeclaredUsers)
 			r.eventf(argocduser, corev1.EventTypeWarning, "UndeclaredGroupMembers",
-				"Group %s holds %d member(s) this ArgocdUser does not declare: %s. They keep the %s role until %s=true.",
+				"Group %s holds %d member(s) this ArgocdUser does not declare: %s. They keep the %s role until %s=true or the %s annotation is set.",
 				groupName, len(undeclaredUsers), summarizeUsers(undeclaredUsers, eventUserSampleSize),
-				roleName, groupMembershipAuthoritativeEnv)
+				roleName, groupMembershipAuthoritativeEnv, GroupMembershipAuthoritativeAnnotation)
 		}
 	}
 
@@ -612,7 +615,7 @@ func (r *ArgocdUserReconciler) cleanupResources(ctx context.Context, argocduser 
 	}
 
 	// 4. Delete Groups (only when this operator exclusively owns them)
-	if err := r.deleteGroups(ctx, name); err != nil {
+	if err := r.deleteGroups(ctx, argocduser); err != nil {
 		return err
 	}
 
@@ -625,17 +628,18 @@ func (r *ArgocdUserReconciler) cleanupResources(ctx context.Context, argocduser 
 // Only safe when the operator owns Group membership outright: with merged
 // membership a Group can hold people this ArgocdUser never declared, and
 // deleting it would revoke access the operator never granted. So this is a
-// no-op unless GroupMembershipAuthoritative is set, which is also why the
-// Groups have historically been left behind.
-func (r *ArgocdUserReconciler) deleteGroups(ctx context.Context, name string) error {
+// no-op unless membership is authoritative for this ArgocdUser, which is also
+// why the Groups have historically been left behind.
+func (r *ArgocdUserReconciler) deleteGroups(ctx context.Context, argocduser *argocduserv1alpha1.ArgocdUser) error {
 	logger := log.FromContext(ctx)
+	name := argocduser.Name
 
 	if !r.GroupCRDInstalled {
 		logger.Info("Group CRD not registered in scheme, skipping group cleanup")
 		return nil
 	}
-	if !r.GroupMembershipAuthoritative {
-		logger.Info("Leaving Groups in place because "+groupMembershipAuthoritativeEnv+" is false", "ArgocdUser", name)
+	if !groupMembershipAuthoritativeFor(argocduser.Annotations, r.GroupMembershipAuthoritative) {
+		logger.Info("Leaving Groups in place because group membership is not authoritative here", "ArgocdUser", name)
 		return nil
 	}
 
