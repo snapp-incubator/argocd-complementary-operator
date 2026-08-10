@@ -36,6 +36,8 @@ import (
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
+	"k8s.io/client-go/tools/record"
+
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -50,8 +52,25 @@ var gvk = userv1.GroupVersion.WithKind("Group")
 type ArgocdUserReconciler struct {
 	client.Client
 	Scheme            *runtime.Scheme
+	Recorder          record.EventRecorder
 	mu                sync.Mutex
 	GroupCRDInstalled bool
+	// GroupMembershipAuthoritative is the cluster-wide default for whether the
+	// ArgocdUser spec is the sole source of truth for the OpenShift Groups this
+	// operator manages. Resolved from the GROUP_MEMBERSHIP_AUTHORITATIVE env var
+	// in SetupWithManager, and overridable per ArgocdUser through the
+	// argocd.snappcloud.io/authoritative-groups annotation. See
+	// groupMembershipAuthoritative for what it changes.
+	GroupMembershipAuthoritative bool
+}
+
+// eventf records an Event on the ArgocdUser, tolerating a nil recorder so the
+// reconciler stays usable when constructed directly (as the tests do).
+func (r *ArgocdUserReconciler) eventf(argocduser *argocduserv1alpha1.ArgocdUser, eventType, reason, messageFmt string, args ...interface{}) {
+	if r.Recorder == nil {
+		return
+	}
+	r.Recorder.Eventf(argocduser, eventType, reason, messageFmt, args...)
 }
 
 //+kubebuilder:rbac:groups=argocd.snappcloud.io,resources=argocdusers,verbs=get;list;watch;create;update;patch;delete
@@ -396,7 +415,7 @@ func (r *ArgocdUserReconciler) reconcileArgocdStaticUser(ctx context.Context, ar
 		logger.Error(err, "Failed to create argocd static user configs", "ArgocdUser", argocduser.Name, "role", "admin")
 		return err
 	}
-	if err := r.AddArgoUsersToGroup(ctx, argocduser, "admin", argocduser.Spec.Admin.Users); err != nil {
+	if err := r.ReconcileArgoUsersGroup(ctx, argocduser, "admin", argocduser.Spec.Admin.Users); err != nil {
 		logger.Error(err, "Failed to update OpenShift groups for Argocduser", "ArgocdUser", argocduser.Name, "role", "admin")
 		return err
 	}
@@ -406,7 +425,7 @@ func (r *ArgocdUserReconciler) reconcileArgocdStaticUser(ctx context.Context, ar
 		logger.Error(err, "Failed to create argocd static user configs", "ArgocdUser", argocduser.Name, "role", "view")
 		return err
 	}
-	if err := r.AddArgoUsersToGroup(ctx, argocduser, "view", argocduser.Spec.View.Users); err != nil {
+	if err := r.ReconcileArgoUsersGroup(ctx, argocduser, "view", argocduser.Spec.View.Users); err != nil {
 		logger.Error(err, "Failed to update OpenShift groups for Argocduser", "ArgocdUser", argocduser.Name, "role", "view")
 		return err
 	}
@@ -416,7 +435,7 @@ func (r *ArgocdUserReconciler) reconcileArgocdStaticUser(ctx context.Context, ar
 		logger.Error(err, "Failed to create argocd static user configs", "ArgocdUser", argocduser.Name, "role", "sync")
 		return err
 	}
-	if err := r.AddArgoUsersToGroup(ctx, argocduser, "sync", argocduser.Spec.Sync.Users); err != nil {
+	if err := r.ReconcileArgoUsersGroup(ctx, argocduser, "sync", argocduser.Spec.Sync.Users); err != nil {
 		logger.Error(err, "Failed to update OpenShift groups for Argocduser", "ArgocdUser", argocduser.Name, "role", "sync")
 		return err
 	}
@@ -500,7 +519,10 @@ func (r *ArgocdUserReconciler) UpdateUserArgocdConfig(ctx context.Context, argoc
 	return nil
 }
 
-func (r *ArgocdUserReconciler) AddArgoUsersToGroup(ctx context.Context, argocduser *argocduserv1alpha1.ArgocdUser, roleName string, argoUsers []string) error {
+// ReconcileArgoUsersGroup brings the OpenShift Group backing one ArgocdUser role
+// in line with the users declared on the spec. Undeclared members are always
+// reported; whether they are removed depends on GroupMembershipAuthoritative.
+func (r *ArgocdUserReconciler) ReconcileArgoUsersGroup(ctx context.Context, argocduser *argocduserv1alpha1.ArgocdUser, roleName string, argoUsers []string) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 	logger := log.FromContext(ctx)
@@ -512,19 +534,20 @@ func (r *ArgocdUserReconciler) AddArgoUsersToGroup(ctx context.Context, argocdus
 	}
 
 	groupName := argocduser.Name + "-" + roleName
-	desiredGroup := &userv1.Group{
-		ObjectMeta: metav1.ObjectMeta{Name: groupName},
-		Users:      argoUsers,
-	}
 	group := &userv1.Group{}
 	err := r.Get(ctx, types.NamespacedName{Name: groupName}, group)
 	if err != nil {
 		if errors.IsNotFound(err) {
+			desiredGroup := &userv1.Group{
+				ObjectMeta: metav1.ObjectMeta{Name: groupName},
+				Users:      argoUsers,
+			}
 			logger.Info("Creating the group", "Group", groupName)
 			if err = r.Create(ctx, desiredGroup); err != nil {
 				logger.Error(err, "Failed to create group", "Group", groupName)
 				return err
 			}
+			undeclaredGroupMembers.WithLabelValues(argocduser.Name, roleName, groupName).Set(0)
 			logger.Info("Successfully created Group", "Group", groupName)
 			return nil
 		} else {
@@ -533,20 +556,39 @@ func (r *ArgocdUserReconciler) AddArgoUsersToGroup(ctx context.Context, argocdus
 		}
 	}
 
-	mergedUsers := mergeStringSlices(group.Users, argoUsers)
+	authoritative := groupMembershipAuthoritativeFor(argocduser.Annotations, r.GroupMembershipAuthoritative)
+	desiredUsers, undeclaredUsers := desiredGroupUsers(group.Users, argoUsers, authoritative)
+	undeclaredGroupMembers.WithLabelValues(argocduser.Name, roleName, groupName).Set(float64(len(undeclaredUsers)))
+
+	if len(undeclaredUsers) > 0 {
+		if authoritative {
+			logger.Info("Removing members that the ArgocdUser does not declare",
+				"Group", groupName, "prunedCount", len(undeclaredUsers), "pruned", undeclaredUsers)
+			r.eventf(argocduser, corev1.EventTypeNormal, "GroupMembersPruned",
+				"Removed %d undeclared member(s) from Group %s: %s",
+				len(undeclaredUsers), groupName, summarizeUsers(undeclaredUsers, eventUserSampleSize))
+		} else {
+			logger.Info("Group holds members the ArgocdUser does not declare; keeping them because group membership is not authoritative here",
+				"Group", groupName, "undeclaredCount", len(undeclaredUsers), "undeclared", undeclaredUsers)
+			r.eventf(argocduser, corev1.EventTypeWarning, "UndeclaredGroupMembers",
+				"Group %s holds %d member(s) this ArgocdUser does not declare: %s. They keep the %s role until %s=true or the %s annotation is set.",
+				groupName, len(undeclaredUsers), summarizeUsers(undeclaredUsers, eventUserSampleSize),
+				roleName, groupMembershipAuthoritativeEnv, GroupMembershipAuthoritativeAnnotation)
+		}
+	}
 
 	// Only update if the users changed
-	bothEmpty := (len(group.Users) == 0 && len(mergedUsers) == 0)
-	if !bothEmpty && !reflect.DeepEqual(group.Users, mergedUsers) {
-		logger.Info("Updating group with merged users", "Group", groupName, "existingCount", len(group.Users), "newCount", len(mergedUsers))
-		logger.Info("Users differ", "existing", group.Users, "merged", mergedUsers)
-		group.Users = mergedUsers
+	bothEmpty := (len(group.Users) == 0 && len(desiredUsers) == 0)
+	if !bothEmpty && !reflect.DeepEqual(group.Users, desiredUsers) {
+		logger.Info("Updating group users", "Group", groupName, "existingCount", len(group.Users), "newCount", len(desiredUsers))
+		logger.Info("Users differ", "existing", group.Users, "desired", desiredUsers)
+		group.Users = desiredUsers
 		err = r.Update(ctx, group)
 		if err != nil {
 			logger.Error(err, "Failed to update group", "Group", groupName)
 			return err
 		}
-		logger.Info("Successfully updated group with merged users", "Group", groupName)
+		logger.Info("Successfully updated group users", "Group", groupName)
 	} else {
 		logger.Info("Group users already up to date, skipping update", "Group", groupName)
 	}
@@ -572,12 +614,48 @@ func (r *ArgocdUserReconciler) cleanupResources(ctx context.Context, argocduser 
 		return err
 	}
 
-	// 4. Delete Groups (if registered)
-	// if err := r.deleteGroups(ctx, name); err != nil {
-	//     return err
-	// }
+	// 4. Delete Groups (only when this operator exclusively owns them)
+	if err := r.deleteGroups(ctx, argocduser); err != nil {
+		return err
+	}
 
 	logger.Info("Successfully cleaned up all resources", "ArgocdUser", name)
+	return nil
+}
+
+// deleteGroups removes the OpenShift Groups backing a deleted ArgocdUser.
+//
+// Only safe when the operator owns Group membership outright: with merged
+// membership a Group can hold people this ArgocdUser never declared, and
+// deleting it would revoke access the operator never granted. So this is a
+// no-op unless membership is authoritative for this ArgocdUser, which is also
+// why the Groups have historically been left behind.
+func (r *ArgocdUserReconciler) deleteGroups(ctx context.Context, argocduser *argocduserv1alpha1.ArgocdUser) error {
+	logger := log.FromContext(ctx)
+	name := argocduser.Name
+
+	if !r.GroupCRDInstalled {
+		logger.Info("Group CRD not registered in scheme, skipping group cleanup")
+		return nil
+	}
+	if !groupMembershipAuthoritativeFor(argocduser.Annotations, r.GroupMembershipAuthoritative) {
+		logger.Info("Leaving Groups in place because group membership is not authoritative here", "ArgocdUser", name)
+		return nil
+	}
+
+	for _, roleName := range groupRoles {
+		groupName := name + "-" + roleName
+		group := &userv1.Group{ObjectMeta: metav1.ObjectMeta{Name: groupName}}
+		if err := r.Delete(ctx, group); err != nil {
+			if errors.IsNotFound(err) {
+				continue
+			}
+			logger.Error(err, "Failed to delete Group", "Group", groupName)
+			return err
+		}
+		undeclaredGroupMembers.DeleteLabelValues(name, roleName, groupName)
+		logger.Info("Removed Group", "Group", groupName)
+	}
 	return nil
 }
 
@@ -663,6 +741,12 @@ func (r *ArgocdUserReconciler) removeSecretEntries(ctx context.Context, name str
 // SetupWithManager sets up the controller with the Manager.
 func (r *ArgocdUserReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	r.GroupCRDInstalled = isCRDInstalled(mgr.GetConfig(), gvk)
+	r.GroupMembershipAuthoritative = groupMembershipAuthoritative()
+	if r.Recorder == nil {
+		r.Recorder = mgr.GetEventRecorderFor("argocduser-controller")
+	}
+	mgr.GetLogger().Info("Group membership mode resolved",
+		"authoritative", r.GroupMembershipAuthoritative, "env", groupMembershipAuthoritativeEnv)
 
 	builder := ctrl.NewControllerManagedBy(mgr).
 		For(&argocduserv1alpha1.ArgocdUser{}).

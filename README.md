@@ -127,6 +127,45 @@ This creates:
    - `team-a-view` - contains view users
    - `team-a-sync` - contains sync users
 
+### Group membership
+
+The AppProject roles are bound to those OpenShift Groups, so a Group's members
+are the people who actually hold the role — removing a name from the
+`ArgocdUser` spec is not by itself a revocation.
+
+By default membership is **merged**: declared users are added, and members added
+out-of-band (`oc adm groups add-users`, a Group predating the CR, a name deleted
+from the spec after the fact) stay. Those extras are reported rather than
+removed:
+
+- a log line on every reconcile of the owning `ArgocdUser`
+- an `UndeclaredGroupMembers` warning Event on the `ArgocdUser`
+  (`kubectl describe argocduser team-a`)
+- the `argocduser_group_undeclared_members{argocduser,role,group}` gauge
+
+Set `GROUP_MEMBERSHIP_AUTHORITATIVE=true` to make the spec the sole source of
+truth: undeclared members are pruned (a `GroupMembersPruned` Event records who),
+out-of-band edits are reverted on the next reconcile — the operator watches the
+Groups — and the Groups are deleted with their `ArgocdUser`.
+
+Because that env var applies to every project on the cluster at once, a single
+`ArgocdUser` can override it in either direction:
+
+```yaml
+metadata:
+  annotations:
+    argocd.snappcloud.io/authoritative-groups: "true"
+```
+
+So one project can be tightened while the rest of the cluster keeps merging, or
+one project exempted on a cluster that is otherwise strict. An absent or
+unparseable annotation falls back to the env var.
+
+Roll it out project by project, and only once the gauge shows a project's
+declarations match reality. The same Groups are often referenced by namespace
+`RoleBinding`s, so pruning can revoke `oc`/`kubectl` access as well as the
+ArgoCD role.
+
 ### Cleanup
 
 When an `ArgocdUser` is deleted, the operator automatically cleans up:
@@ -135,7 +174,9 @@ When an `ArgocdUser` is deleted, the operator automatically cleans up:
 - ConfigMap entries for static users
 - Secret entries for passwords
 - ClusterRole and ClusterRoleBinding (via OwnerReferences)
-- ~~OpenShift Groups~~ (Currently Disabled)
+- OpenShift Groups (only when `GROUP_MEMBERSHIP_AUTHORITATIVE=true`; otherwise
+  they are left behind, since a merged Group may hold members this operator
+  never granted)
 
 ## Configuration
 
@@ -146,6 +187,7 @@ When an `ArgocdUser` is deleted, the operator automatically cleans up:
 | `PUBLIC_REPOS` | Comma-separated list of public repositories available to all projects |
 | `CLUSTER_ADMIN_TEAMS` | Comma-separated list of teams with cluster-admin privileges |
 | `USER_ARGOCD_NAMESPACE` | Namespace holding the managed AppProjects and the argocd static-user ConfigMap/Secret. Also scopes the manager's Secret/ConfigMap informer caches. Defaults to `user-argocd`. |
+| `GROUP_MEMBERSHIP_AUTHORITATIVE` | Cluster-wide default for whether the `ArgocdUser` spec is the sole source of truth for its OpenShift Groups: prunes undeclared members and deletes the Groups on cleanup. Defaults to `false`, which merges membership and only reports drift. Overridable per project with the `argocd.snappcloud.io/authoritative-groups` annotation. See [Group membership](#group-membership). |
 
 ## Instructions
 

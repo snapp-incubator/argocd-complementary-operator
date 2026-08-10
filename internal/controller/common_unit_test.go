@@ -15,6 +15,12 @@ const (
 	testTeamA    = "team-a"
 	testTeamB    = "team-b"
 	testTeamC    = "team-c"
+
+	testUndeclaredUser = "pouya@snapp-box.com"
+	testDeclaredUser   = "sina@snapp-box.com"
+
+	testTrue  = "true"
+	testFalse = "false"
 )
 
 func mustUnsetenv(t *testing.T, key string) {
@@ -609,6 +615,203 @@ func TestLabelToProjects(t *testing.T) {
 				if !result.Contains(exp) {
 					t.Errorf("expected result to contain %q", exp)
 				}
+			}
+		})
+	}
+}
+
+func TestGroupMembershipAuthoritative(t *testing.T) {
+	tests := []struct {
+		name     string
+		value    string
+		unset    bool
+		expected bool
+	}{
+		{name: "defaults to merge when unset", unset: true, expected: false},
+		{name: "empty is merge", value: "", expected: false},
+		{name: testTrue, value: testTrue, expected: true},
+		{name: "True", value: "True", expected: true},
+		{name: "1", value: "1", expected: true},
+		{name: testFalse, value: testFalse, expected: false},
+		{name: "garbage falls back to merge", value: "yes-please", expected: false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if tt.unset {
+				mustUnsetenv(t, groupMembershipAuthoritativeEnv)
+			} else {
+				t.Setenv(groupMembershipAuthoritativeEnv, tt.value)
+			}
+			if got := groupMembershipAuthoritative(); got != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, got)
+			}
+		})
+	}
+}
+
+func TestDesiredGroupUsers(t *testing.T) {
+	tests := []struct {
+		name               string
+		existing           []string
+		declared           []string
+		authoritative      bool
+		expectedDesired    []string
+		expectedUndeclared []string
+	}{
+		{
+			name:               "merge keeps a member the spec dropped",
+			existing:           []string{testUndeclaredUser, testDeclaredUser},
+			declared:           []string{testDeclaredUser},
+			authoritative:      false,
+			expectedDesired:    []string{testUndeclaredUser, testDeclaredUser},
+			expectedUndeclared: []string{testUndeclaredUser},
+		},
+		{
+			name:               "authoritative prunes a member the spec dropped",
+			existing:           []string{testUndeclaredUser, testDeclaredUser},
+			declared:           []string{testDeclaredUser},
+			authoritative:      true,
+			expectedDesired:    []string{testDeclaredUser},
+			expectedUndeclared: []string{testUndeclaredUser},
+		},
+		{
+			name:               "authoritative empties a group with nothing declared",
+			existing:           []string{"a", "b"},
+			declared:           nil,
+			authoritative:      true,
+			expectedDesired:    []string{},
+			expectedUndeclared: []string{"a", "b"},
+		},
+		{
+			name:               "merge keeps everyone when nothing is declared",
+			existing:           []string{"a", "b"},
+			declared:           nil,
+			authoritative:      false,
+			expectedDesired:    []string{"a", "b"},
+			expectedUndeclared: []string{"a", "b"},
+		},
+		{
+			name:               "declared members are added in both modes",
+			existing:           []string{"a"},
+			declared:           []string{"a", "b"},
+			authoritative:      false,
+			expectedDesired:    []string{"a", "b"},
+			expectedUndeclared: []string{},
+		},
+		{
+			name:               "no drift when they already match",
+			existing:           []string{"a", "b"},
+			declared:           []string{"b", "a"},
+			authoritative:      true,
+			expectedDesired:    []string{"a", "b"},
+			expectedUndeclared: []string{},
+		},
+		{
+			name:               "duplicates in the live group are reported once",
+			existing:           []string{"a", "a", "b"},
+			declared:           []string{"b"},
+			authoritative:      true,
+			expectedDesired:    []string{"b"},
+			expectedUndeclared: []string{"a"},
+		},
+		{
+			name:               "results are sorted",
+			existing:           []string{"z", "m"},
+			declared:           []string{"f", "a"},
+			authoritative:      true,
+			expectedDesired:    []string{"a", "f"},
+			expectedUndeclared: []string{"m", "z"},
+		},
+	}
+
+	assertEqual := func(t *testing.T, label string, got, expected []string) {
+		t.Helper()
+		if len(got) != len(expected) {
+			t.Fatalf("%s: expected %v, got %v", label, expected, got)
+		}
+		for i, v := range got {
+			if v != expected[i] {
+				t.Errorf("%s index %d: expected %q, got %q", label, i, expected[i], v)
+			}
+		}
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			desired, undeclared := desiredGroupUsers(tt.existing, tt.declared, tt.authoritative)
+			assertEqual(t, "desired", desired, tt.expectedDesired)
+			assertEqual(t, "undeclared", undeclared, tt.expectedUndeclared)
+		})
+	}
+}
+
+func TestSummarizeUsers(t *testing.T) {
+	tests := []struct {
+		name     string
+		users    []string
+		sample   int
+		expected string
+	}{
+		{name: "empty", users: nil, sample: 3, expected: ""},
+		{name: "under the sample size", users: []string{"a", "b"}, sample: 3, expected: "a, b"},
+		{name: "exactly the sample size", users: []string{"a", "b", "c"}, sample: 3, expected: "a, b, c"},
+		{name: "over the sample size", users: []string{"a", "b", "c", "d", "e"}, sample: 3, expected: "a, b, c and 2 more"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := summarizeUsers(tt.users, tt.sample); got != tt.expected {
+				t.Errorf("expected %q, got %q", tt.expected, got)
+			}
+		})
+	}
+}
+
+func TestGroupMembershipAuthoritativeFor(t *testing.T) {
+	tests := []struct {
+		name           string
+		annotations    map[string]string
+		clusterDefault bool
+		expected       bool
+	}{
+		{name: "no annotations falls back to the cluster default", annotations: nil, clusterDefault: true, expected: true},
+		{
+			name:           "unrelated annotations fall back",
+			annotations:    map[string]string{"other": testTrue},
+			clusterDefault: false,
+			expected:       false,
+		},
+		{
+			name:           "opts a single project in on a merging cluster",
+			annotations:    map[string]string{GroupMembershipAuthoritativeAnnotation: testTrue},
+			clusterDefault: false,
+			expected:       true,
+		},
+		{
+			name:           "exempts a single project on a strict cluster",
+			annotations:    map[string]string{GroupMembershipAuthoritativeAnnotation: testFalse},
+			clusterDefault: true,
+			expected:       false,
+		},
+		{
+			name:           "garbage falls back to the cluster default",
+			annotations:    map[string]string{GroupMembershipAuthoritativeAnnotation: "sure"},
+			clusterDefault: true,
+			expected:       true,
+		},
+		{
+			name:           "empty value falls back to the cluster default",
+			annotations:    map[string]string{GroupMembershipAuthoritativeAnnotation: ""},
+			clusterDefault: false,
+			expected:       false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := groupMembershipAuthoritativeFor(tt.annotations, tt.clusterDefault); got != tt.expected {
+				t.Errorf("expected %v, got %v", tt.expected, got)
 			}
 		})
 	}

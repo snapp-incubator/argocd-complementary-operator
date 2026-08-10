@@ -34,6 +34,14 @@ spec:
             # Defaults to user-argocd if unset; set here to make it explicit.
             - name: USER_ARGOCD_NAMESPACE
               value: user-argocd
+            # Whether the ArgocdUser spec is the sole source of truth for the
+            # OpenShift Groups this operator manages. Left false so membership
+            # is merged (the historical behaviour) and drift is only reported;
+            # flip to "true" per cluster once the declarations match reality —
+            # these Groups can also back namespace RoleBindings, so pruning
+            # revokes cluster access as well as the ArgoCD role.
+            - name: GROUP_MEMBERSHIP_AUTHORITATIVE
+              value: "false"
           envFrom:
             - configMapRef:
                 name: public-repos
