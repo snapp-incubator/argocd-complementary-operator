@@ -2,11 +2,13 @@ package controller
 
 import (
 	"os"
+	"reflect"
 	"strings"
 	"testing"
 
 	"golang.org/x/crypto/bcrypt"
 
+	argocduserv1alpha1 "github.com/snapp-incubator/argocd-complementary-operator/api/v1alpha1"
 	"github.com/snapp-incubator/argocd-complementary-operator/pkg/nameset"
 )
 
@@ -815,4 +817,41 @@ func TestGroupMembershipAuthoritativeFor(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestDesiredClusterResourceWhitelist(t *testing.T) {
+	crdRule := argocduserv1alpha1.ClusterResource{
+		Group: "apiextensions.k8s.io",
+		Kind:  "CustomResourceDefinition",
+		Name:  "*.example.io",
+	}
+
+	t.Run("no rules leaves the project alone", func(t *testing.T) {
+		mustUnsetenv(t, "CLUSTER_ADMIN_TEAMS")
+		if got := desiredClusterResourceWhitelist("team-x", nil); got != nil {
+			t.Errorf("expected nil, got %v", got)
+		}
+	})
+
+	t.Run("cluster admin team leaves the project alone", func(t *testing.T) {
+		t.Setenv("CLUSTER_ADMIN_TEAMS", "team-x")
+		if got := desiredClusterResourceWhitelist("team-x", []argocduserv1alpha1.ClusterResource{crdRule}); got != nil {
+			t.Errorf("expected nil, got %v", got)
+		}
+	})
+
+	t.Run("rules become the whitelist, name only when set", func(t *testing.T) {
+		mustUnsetenv(t, "CLUSTER_ADMIN_TEAMS")
+		got := desiredClusterResourceWhitelist("team-x", []argocduserv1alpha1.ClusterResource{
+			crdRule,
+			{Group: "", Kind: "Namespace"},
+		})
+		want := []interface{}{
+			map[string]interface{}{"group": "apiextensions.k8s.io", "kind": "CustomResourceDefinition", "name": "*.example.io"},
+			map[string]interface{}{"group": "", "kind": "Namespace"},
+		}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("expected %v, got %v", want, got)
+		}
+	})
 }

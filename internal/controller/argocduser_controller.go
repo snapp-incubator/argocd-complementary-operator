@@ -18,6 +18,7 @@ package controller
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"reflect"
 	"strings"
@@ -33,6 +34,7 @@ import (
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
+	"k8s.io/apimachinery/pkg/apis/meta/v1/unstructured"
 	"k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/apimachinery/pkg/types"
 
@@ -335,6 +337,12 @@ func (r *ArgocdUserReconciler) reconcileAppProject(ctx context.Context, argocdus
 	appProjectName := argocduser.Name
 
 	desiredAppProject := createAppProj(appProjectName)
+	if desiredClusterResourceWhitelist(appProjectName, argocduser.Spec.ClusterResourceWhitelist) != nil {
+		// Create without the default */* blacklist; with an empty whitelist the
+		// new project denies every cluster resource until
+		// reconcileClusterResources sets the whitelist right after.
+		desiredAppProject.Spec.ClusterResourceBlacklist = nil
+	}
 
 	// Check if AppProject does not exist and create a new one
 	found := &argov1alpha1.AppProject{}
@@ -347,7 +355,7 @@ func (r *ArgocdUserReconciler) reconcileAppProject(ctx context.Context, argocdus
 				return err
 			}
 			logger.Info("Successfully created AppProject", "AppProject", appProjectName)
-			return nil
+			return r.reconcileClusterResources(ctx, argocduser)
 		} else {
 			logger.Error(err, "Failed to get AppProject", "AppProject", appProjectName)
 			return err
@@ -356,6 +364,10 @@ func (r *ArgocdUserReconciler) reconcileAppProject(ctx context.Context, argocdus
 
 	desiredAppProject.Spec.SourceRepos = mergeStringSlices(desiredAppProject.Spec.SourceRepos, found.Spec.SourceRepos)
 
+	// Patch only the fields changed below. A full Update would write back every
+	// field as the vendored Argo CD v2 types know it, dropping what they do not
+	// model (such as the `name` of a cluster resource rule).
+	base := found.DeepCopy()
 	needsUpdate := false
 	var bothEmpty bool
 	// 1. Fix Destinations (source of truth: NamespaceCache)
@@ -401,7 +413,7 @@ func (r *ArgocdUserReconciler) reconcileAppProject(ctx context.Context, argocdus
 	// Only update if something changed
 	if needsUpdate {
 		logger.Info("Updating AppProject", "AppProject", appProjectName)
-		if err := r.Update(ctx, found); err != nil {
+		if err := r.Patch(ctx, found, client.MergeFrom(base)); err != nil {
 			logger.Error(err, "Failed to update AppProject", "AppProject", appProjectName)
 			return err
 		}
@@ -409,6 +421,55 @@ func (r *ArgocdUserReconciler) reconcileAppProject(ctx context.Context, argocdus
 		logger.Info("AppProject is up to date, no changes needed", "AppProject", appProjectName)
 	}
 
+	return r.reconcileClusterResources(ctx, argocduser)
+}
+
+// reconcileClusterResources makes the AppProject's cluster resource rules match
+// spec.clusterResourceWhitelist: that list becomes the clusterResourceWhitelist
+// and the clusterResourceBlacklist is removed. It does nothing when
+// desiredClusterResourceWhitelist returns nil, so the rules of an ArgocdUser
+// without the field stay as they are. The AppProject is read and patched
+// untyped so that a rule's `name` glob survives.
+func (r *ArgocdUserReconciler) reconcileClusterResources(ctx context.Context, argocduser *argocduserv1alpha1.ArgocdUser) error {
+	logger := log.FromContext(ctx)
+	desired := desiredClusterResourceWhitelist(argocduser.Name, argocduser.Spec.ClusterResourceWhitelist)
+	if desired == nil {
+		return nil
+	}
+
+	found := &unstructured.Unstructured{}
+	found.SetGroupVersionKind(appProjectGVK)
+	if err := r.Get(ctx, types.NamespacedName{Name: argocduser.Name, Namespace: UserArgocdNS}, found); err != nil {
+		logger.Error(err, "Failed to get AppProject", "AppProject", argocduser.Name)
+		return err
+	}
+
+	whitelist, _, err := unstructured.NestedSlice(found.Object, "spec", "clusterResourceWhitelist")
+	if err != nil {
+		return fmt.Errorf("reading clusterResourceWhitelist of AppProject %s: %w", argocduser.Name, err)
+	}
+	_, hasBlacklist, err := unstructured.NestedFieldNoCopy(found.Object, "spec", "clusterResourceBlacklist")
+	if err != nil {
+		return fmt.Errorf("reading clusterResourceBlacklist of AppProject %s: %w", argocduser.Name, err)
+	}
+	if !hasBlacklist && reflect.DeepEqual(whitelist, desired) {
+		return nil
+	}
+
+	patch, err := json.Marshal(map[string]interface{}{
+		"spec": map[string]interface{}{
+			"clusterResourceWhitelist": desired,
+			"clusterResourceBlacklist": nil,
+		},
+	})
+	if err != nil {
+		return err
+	}
+	logger.Info("Updating AppProject cluster resource rules", "AppProject", argocduser.Name, "whitelist", desired)
+	if err := r.Patch(ctx, found, client.RawPatch(types.MergePatchType, patch)); err != nil {
+		logger.Error(err, "Failed to update AppProject cluster resource rules", "AppProject", argocduser.Name)
+		return err
+	}
 	return nil
 }
 

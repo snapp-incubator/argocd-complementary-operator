@@ -62,6 +62,10 @@ spec:
                       type: string
                     kind:
                       type: string
+                    name:
+                      description: Name is the name of the restricted resource. Glob patterns
+                        using Go's filepath.Match syntax are supported.
+                      type: string
                   required:
                   - group
                   - kind
@@ -78,6 +82,10 @@ spec:
                     group:
                       type: string
                     kind:
+                      type: string
+                    name:
+                      description: Name is the name of the restricted resource. Glob patterns
+                        using Go's filepath.Match syntax are supported.
                       type: string
                   required:
                   - group

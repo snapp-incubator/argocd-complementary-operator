@@ -349,6 +349,8 @@ func (r *NamespaceReconciler) reconcileAppProject(ctx context.Context, logger lo
 	}
 
 	// If AppProject already exist, check if it is deeply equal with desrired state on destinations and source namespaces
+	// Patch only these fields; see ArgocdUserReconciler.reconcileAppProject.
+	base := found.DeepCopy()
 	needsUpdate := false
 
 	var bothEmpty bool
@@ -375,7 +377,7 @@ func (r *NamespaceReconciler) reconcileAppProject(ctx context.Context, logger lo
 	// Only update if something changed
 	if needsUpdate {
 		logger.Info("Updating AppProject", "AppProject", team)
-		if err := r.Update(ctx, found); err != nil {
+		if err := r.Patch(ctx, found, client.MergeFrom(base)); err != nil {
 			logger.Error(err, "Failed to update AppProject", "AppProject", team)
 			return err
 		}
