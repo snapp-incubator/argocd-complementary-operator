@@ -55,6 +55,38 @@ spec:
                       type: string
                     type: array
                 type: object
+              clusterResourceWhitelist:
+                description: |-
+                  ClusterResourceWhitelist lists the cluster-scoped resources the team's
+                  AppProject may deploy. When it is set, the operator makes it the
+                  AppProject's clusterResourceWhitelist and removes the default
+                  clusterResourceBlacklist (*/*). When it is empty, the operator leaves the
+                  AppProject's cluster resource rules as they are. It has no effect for a
+                  team in CLUSTER_ADMIN_TEAMS, which may already deploy every cluster
+                  resource.
+                items:
+                  description: |-
+                    ClusterResource selects cluster-scoped resources by API group, kind and,
+                    optionally, name.
+                  properties:
+                    group:
+                      description: Group is the API group, "" for the core group.
+                      type: string
+                    kind:
+                      description: Kind is the resource kind, for example CustomResourceDefinition.
+                      minLength: 1
+                      type: string
+                    name:
+                      description: |-
+                        Name is a glob (Go filepath.Match syntax) on the resource name, for
+                        example "*.example.io". Empty matches every name. Argo CD honors it from
+                        v3.3; older Argo CD ignores it and matches every name.
+                      type: string
+                  required:
+                  - group
+                  - kind
+                  type: object
+                type: array
               sync:
                 description: |-
                   ArgocdCISync grants view access plus the ability to trigger application

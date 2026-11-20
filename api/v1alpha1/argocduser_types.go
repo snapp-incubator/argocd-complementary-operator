@@ -30,6 +30,31 @@ type ArgocdUserSpec struct {
 	Admin ArgocdCIAdmin `json:"admin,omitempty"`
 	View  ArgocdCIView  `json:"view,omitempty"`
 	Sync  ArgocdCISync  `json:"sync,omitempty"`
+
+	// ClusterResourceWhitelist lists the cluster-scoped resources the team's
+	// AppProject may deploy. When it is set, the operator makes it the
+	// AppProject's clusterResourceWhitelist and removes the default
+	// clusterResourceBlacklist (*/*). When it is empty, the operator leaves the
+	// AppProject's cluster resource rules as they are. It has no effect for a
+	// team in CLUSTER_ADMIN_TEAMS, which may already deploy every cluster
+	// resource.
+	// +optional
+	ClusterResourceWhitelist []ClusterResource `json:"clusterResourceWhitelist,omitempty"`
+}
+
+// ClusterResource selects cluster-scoped resources by API group, kind and,
+// optionally, name.
+type ClusterResource struct {
+	// Group is the API group, "" for the core group.
+	Group string `json:"group"`
+	// Kind is the resource kind, for example CustomResourceDefinition.
+	// +kubebuilder:validation:MinLength=1
+	Kind string `json:"kind"`
+	// Name is a glob (Go filepath.Match syntax) on the resource name, for
+	// example "*.example.io". Empty matches every name. Argo CD honors it from
+	// v3.3; older Argo CD ignores it and matches every name.
+	// +optional
+	Name string `json:"name,omitempty"`
 }
 type ArgocdCIAdmin struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster

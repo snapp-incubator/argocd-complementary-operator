@@ -77,6 +77,28 @@ metadata:
     argocd.snappcloud.io/source: team-a  # Applications can be created here
 ```
 
+#### Cluster-scoped resources
+
+By default a project may deploy no cluster-scoped resource: the operator creates it with `clusterResourceBlacklist: [{group: "*", kind: "*"}]`. A team in `CLUSTER_ADMIN_TEAMS` gets `clusterResourceWhitelist: [{group: "*", kind: "*"}]` instead.
+
+To let one team deploy a few cluster-scoped resources, list them in its `ArgocdUser`. The operator makes that list the project's `clusterResourceWhitelist` and removes the blacklist, on create and on every reconcile. `name` is a glob on the resource name (Argo CD v3.3 or later; older versions ignore it and match every name):
+
+```yaml
+apiVersion: argocd.snappcloud.io/v1alpha1
+kind: ArgocdUser
+metadata:
+  name: team-a
+spec:
+  clusterResourceWhitelist:
+    - group: apiextensions.k8s.io
+      kind: CustomResourceDefinition
+      name: "*.example.io"  # only the CRDs of example.io
+```
+
+When the list is empty, the operator does not touch the project's cluster resource rules after it creates the project, so rules set by hand stay. The list has no effect for a team in `CLUSTER_ADMIN_TEAMS`.
+
+The operator never writes back fields it does not manage: it patches only destinations, source namespaces, roles, source repositories and, when set, the cluster resource rules. So a field that the vendored Argo CD types do not know, such as `name` on a cluster resource rule, survives a reconcile.
+
 ### ArgoCD Users
 
 Create an `ArgocdUser` to set up a team with admin, sync and view roles:

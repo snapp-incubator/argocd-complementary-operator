@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	argov1alpha1 "github.com/argoproj/argo-cd/v2/pkg/apis/application/v1alpha1"
+	argocduserv1alpha1 "github.com/snapp-incubator/argocd-complementary-operator/api/v1alpha1"
 	"github.com/snapp-incubator/argocd-complementary-operator/pkg/nameset"
 
 	"golang.org/x/crypto/bcrypt"
@@ -180,6 +181,51 @@ func isTeamClusterAdmin(team string, clusterAdminList []string) bool {
 	return false
 }
 
+// splitNonEmpty splits s by sep and drops empty, whitespace-only items.
+func splitNonEmpty(s, sep string) []string {
+	if s == "" {
+		return nil
+	}
+	var result []string
+	for _, item := range strings.Split(s, sep) {
+		if trimmed := strings.TrimSpace(item); trimmed != "" {
+			result = append(result, trimmed)
+		}
+	}
+	return result
+}
+
+// clusterAdminTeams returns the teams in CLUSTER_ADMIN_TEAMS, whose
+// AppProjects may deploy every cluster-scoped resource.
+func clusterAdminTeams() []string {
+	return splitNonEmpty(os.Getenv("CLUSTER_ADMIN_TEAMS"), ",")
+}
+
+// appProjectGVK is used to read and patch AppProject cluster resource rules
+// untyped. The vendored Argo CD v2 types model a rule as metav1.GroupKind, with
+// no `name`, so a typed read-modify-write would drop a rule's name glob and
+// widen it to every resource of that kind.
+var appProjectGVK = schema.GroupVersionKind{Group: "argoproj.io", Version: "v1alpha1", Kind: "AppProject"}
+
+// desiredClusterResourceWhitelist returns the AppProject clusterResourceWhitelist
+// that an ArgocdUser asks for, in the AppProject's JSON shape. It returns nil
+// when the operator must leave the cluster resource rules alone: the ArgocdUser
+// sets no rules, or the team is in CLUSTER_ADMIN_TEAMS and already has */*.
+func desiredClusterResourceWhitelist(team string, rules []argocduserv1alpha1.ClusterResource) []interface{} {
+	if len(rules) == 0 || isTeamClusterAdmin(team, clusterAdminTeams()) {
+		return nil
+	}
+	whitelist := make([]interface{}, 0, len(rules))
+	for _, rule := range rules {
+		item := map[string]interface{}{"group": rule.Group, "kind": rule.Kind}
+		if rule.Name != "" {
+			item["name"] = rule.Name
+		}
+		whitelist = append(whitelist, item)
+	}
+	return whitelist
+}
+
 func createAppProj(team string) *argov1alpha1.AppProject {
 	desiredNamespaces := NamespaceCache.GetNamespaces(team)
 	destinations := make([]argov1alpha1.ApplicationDestination, 0, len(desiredNamespaces))
@@ -193,27 +239,12 @@ func createAppProj(team string) *argov1alpha1.AppProject {
 
 	sources := NamespaceCache.GetSources(team)
 
-	// Split string variables by separator, prevent empty strings as result.
-	splitNonEmpty := func(s, sep string) []string {
-		if s == "" {
-			return nil
-		}
-		var result []string
-		for _, item := range strings.Split(s, sep) {
-			if trimmed := strings.TrimSpace(item); trimmed != "" {
-				result = append(result, trimmed)
-			}
-		}
-		return result
-	}
-
 	// Get public repos
 	repo_env := os.Getenv("PUBLIC_REPOS")
 	repo_list := splitNonEmpty(repo_env, ",")
 
 	// Get cluster scoped teams
-	team_env := os.Getenv("CLUSTER_ADMIN_TEAMS")
-	team_list := splitNonEmpty(team_env, ",")
+	team_list := clusterAdminTeams()
 
 	includeAllGroupKind := []metav1.GroupKind{
 		{
