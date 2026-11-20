@@ -237,8 +237,10 @@ make docker-push   # Push to registry
 ```bash
 make run      # Run locally (for development)
 make install  # Install CRDs
-make deploy   # Deploy to Kubernetes
+make deploy   # Deploy to Kubernetes (CRD included)
 ```
+
+`config/default` includes the `ArgocdUser` CRD, so a GitOps tool that deploys that directory (for example an Argo CD Application on `config/default`) also upgrades the CRD with each release. The CRD has `argocd.argoproj.io/sync-options: Delete=false`: Argo CD never deletes it, because deleting the CRD deletes every `ArgocdUser`.
 
 ### Clean up
 
