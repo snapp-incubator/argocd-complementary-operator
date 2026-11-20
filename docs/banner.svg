@@ -1,0 +1,51 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="320" viewBox="0 0 1280 320" role="img" aria-labelledby="title desc">
+  <title id="title">ArgoCD Complementary Operator</title>
+  <desc id="desc">One ArgocdUser and a few namespace labels become an Argo CD project, static CI accounts and OpenShift groups.</desc>
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0b1220"/>
+      <stop offset="1" stop-color="#1b2a44"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="0.78" cy="0.5" r="0.45">
+      <stop offset="0" stop-color="#f97316" stop-opacity="0.22"/>
+      <stop offset="1" stop-color="#f97316" stop-opacity="0"/>
+    </radialGradient>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+    <pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse">
+      <circle cx="2" cy="2" r="1.2" fill="#ffffff" fill-opacity="0.06"/>
+    </pattern>
+  </defs>
+
+  <rect width="1280" height="320" rx="20" fill="url(#bg)"/>
+  <rect width="1280" height="320" rx="20" fill="url(#dots)"/>
+  <rect width="1280" height="320" rx="20" fill="url(#glow)"/>
+
+  <!-- Wordmark -->
+  <g font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif">
+    <text x="72" y="118" font-size="22" font-weight="600" fill="#f97316" letter-spacing="4">ARGO CD</text>
+    <text x="70" y="172" font-size="50" font-weight="800" fill="#f1f5f9">Complementary Operator</text>
+    <text x="72" y="216" font-size="21" fill="#94a3b8">Teams, users and projects for Argo CD,</text>
+    <text x="72" y="244" font-size="21" fill="#94a3b8">from one <tspan fill="#38bdf8" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace">ArgocdUser</tspan> and a few namespace labels.</text>
+  </g>
+
+  <!-- Motif: one ArgocdUser fans out to what the operator manages -->
+  <g font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="15">
+    <path d="M905,160 C950,160 950,82 1000,82" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+    <path d="M905,160 L1000,160" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+    <path d="M905,160 C950,160 950,238 1000,238" fill="none" stroke="#64748b" stroke-width="2" marker-end="url(#arrow)"/>
+
+    <rect x="760" y="130" width="145" height="60" rx="12" fill="#0f2537" stroke="#38bdf8" stroke-width="2"/>
+    <text x="832" y="166" text-anchor="middle" fill="#e0f2fe">ArgocdUser</text>
+
+    <rect x="1004" y="58" width="190" height="48" rx="10" fill="#2a1a10" stroke="#f97316" stroke-width="2"/>
+    <text x="1099" y="88" text-anchor="middle" fill="#ffedd5">AppProject</text>
+
+    <rect x="1004" y="136" width="190" height="48" rx="10" fill="#10261f" stroke="#34d399" stroke-width="2"/>
+    <text x="1099" y="166" text-anchor="middle" fill="#d1fae5">CI accounts</text>
+
+    <rect x="1004" y="214" width="190" height="48" rx="10" fill="#1f1a33" stroke="#a78bfa" stroke-width="2"/>
+    <text x="1099" y="244" text-anchor="middle" fill="#ede9fe">Groups + RBAC</text>
+  </g>
+</svg>

@@ -1,0 +1,136 @@
+<svg xmlns="http://www.w3.org/2000/svg" xml:space="preserve" width="1200" height="820" viewBox="0 0 1200 820" role="img" aria-labelledby="title desc">
+  <title id="title">How the ArgoCD Complementary Operator works</title>
+  <desc id="desc">ArgocdUser resources, namespace labels and environment variables feed two controllers. The ArgocdUser controller creates and patches the team's AppProject, writes static CI accounts into argocd-cm and argocd-secret, and manages OpenShift Groups and RBAC. The Namespace controller patches project destinations and source namespaces from labels. Argo CD then uses the project, the accounts and the groups.</desc>
+  <defs>
+    <marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#64748b"/>
+    </marker>
+    <marker id="ao" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
+      <path d="M0,0 L10,5 L0,10 z" fill="#f97316"/>
+    </marker>
+    <style>
+      .t  { font-family: ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+      .m  { font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; }
+      .h  { font-size: 16px; font-weight: 700; }
+      .s  { font-size: 13px; fill: #cbd5e1; }
+      .ms { font-size: 12.5px; fill: #cbd5e1; }
+      .k  { font-size: 12px; font-weight: 700; letter-spacing: 2px; fill: #64748b; }
+      .ln { fill: none; stroke: #64748b; stroke-width: 1.8; }
+      .lo { fill: none; stroke: #f97316; stroke-width: 1.8; }
+    </style>
+  </defs>
+
+  <rect width="1200" height="820" rx="20" fill="#0f172a"/>
+
+  <text x="40" y="50" class="t" font-size="26" font-weight="800" fill="#f1f5f9">How it works</text>
+  <text x="40" y="76" class="t s">Two controllers turn ArgocdUser resources and namespace labels into everything a team needs in Argo CD.</text>
+
+  <!-- Column headings -->
+  <text x="40"  y="116" class="t k">INPUTS</text>
+  <text x="420" y="116" class="t k">CONTROLLERS</text>
+  <text x="800" y="116" class="t k">MANAGED RESOURCES</text>
+
+  <!-- ===== Inputs ===== -->
+  <rect x="40" y="130" width="300" height="200" rx="12" fill="#0f2537" stroke="#38bdf8" stroke-width="2"/>
+  <text x="60" y="160" class="t h" fill="#e0f2fe">ArgocdUser <tspan class="m" font-weight="400" font-size="14">team-a</tspan></text>
+  <text x="60" y="180" class="t s" fill="#7dd3fc" style="fill:#7dd3fc">cluster-scoped, one per team</text>
+  <text x="60" y="210" class="m ms">spec:</text>
+  <text x="60" y="230" class="m ms">  admin: users, ciPass</text>
+  <text x="60" y="250" class="m ms">  sync:  users, ciPass</text>
+  <text x="60" y="270" class="m ms">  view:  users, ciPass</text>
+  <text x="60" y="290" class="m ms">  clusterResourceWhitelist:</text>
+  <text x="60" y="310" class="m ms">    group, kind, name glob</text>
+
+  <rect x="40" y="350" width="300" height="140" rx="12" fill="#0f2537" stroke="#38bdf8" stroke-width="2"/>
+  <text x="60" y="380" class="t h" fill="#e0f2fe">Namespace labels</text>
+  <text x="60" y="410" class="m ms">argocd.snappcloud.io/appproj:</text>
+  <text x="60" y="430" class="m ms">  team-a.team-b   deploy here</text>
+  <text x="60" y="456" class="m ms">argocd.snappcloud.io/source:</text>
+  <text x="60" y="476" class="m ms">  team-a          apps live here</text>
+
+  <rect x="40" y="510" width="300" height="130" rx="12" fill="#111827" stroke="#475569" stroke-width="2" stroke-dasharray="6 5"/>
+  <text x="60" y="540" class="t h" fill="#e2e8f0">Operator environment</text>
+  <text x="60" y="568" class="m ms">PUBLIC_REPOS</text>
+  <text x="60" y="588" class="m ms">CLUSTER_ADMIN_TEAMS</text>
+  <text x="60" y="608" class="m ms">GROUP_MEMBERSHIP_AUTHORITATIVE</text>
+  <text x="60" y="628" class="m ms">USER_ARGOCD_NAMESPACE</text>
+
+  <!-- ===== Controllers ===== -->
+  <rect x="420" y="130" width="300" height="200" rx="12" fill="#2a1a10" stroke="#f97316" stroke-width="2"/>
+  <text x="440" y="160" class="t h" fill="#ffedd5">ArgocdUser controller</text>
+  <text x="440" y="190" class="t s">• creates the team's AppProject</text>
+  <text x="440" y="212" class="t s">• patches roles, source repos and</text>
+  <text x="440" y="230" class="t s">   cluster resource rules</text>
+  <text x="440" y="252" class="t s">• writes static CI accounts</text>
+  <text x="440" y="274" class="t s">• manages Groups and RBAC</text>
+  <text x="440" y="296" class="t s">• finalizer cleans up on delete</text>
+
+  <rect x="420" y="350" width="300" height="140" rx="12" fill="#2a1a10" stroke="#f97316" stroke-width="2"/>
+  <text x="440" y="380" class="t h" fill="#ffedd5">Namespace controller</text>
+  <text x="440" y="410" class="t s">• reads the two labels</text>
+  <text x="440" y="432" class="t s">• patches destinations and</text>
+  <text x="440" y="450" class="t s">   source namespaces of the</text>
+  <text x="440" y="468" class="t s">   projects that already exist</text>
+
+  <rect x="420" y="530" width="300" height="80" rx="12" fill="#111827" stroke="#475569" stroke-width="2" stroke-dasharray="6 5"/>
+  <text x="440" y="560" class="t h" fill="#e2e8f0">Namespace cache</text>
+  <text x="440" y="586" class="m ms">project → namespaces, sources</text>
+
+  <!-- ===== Managed resources ===== -->
+  <rect x="800" y="130" width="360" height="340" rx="14" fill="none" stroke="#334155" stroke-width="1.5" stroke-dasharray="4 4"/>
+  <text x="816" y="152" class="m" font-size="12" fill="#64748b">namespace user-argocd</text>
+
+  <rect x="816" y="164" width="328" height="164" rx="12" fill="#10261f" stroke="#34d399" stroke-width="2"/>
+  <text x="836" y="192" class="t h" fill="#d1fae5">AppProject <tspan class="m" font-weight="400" font-size="14">team-a</tspan></text>
+  <text x="836" y="218" class="m ms">roles   team-a-{admin,sync,view}</text>
+  <text x="836" y="238" class="m ms">destinations      ← appproj label</text>
+  <text x="836" y="258" class="m ms">sourceNamespaces  ← source label</text>
+  <text x="836" y="278" class="m ms">sourceRepos       ← PUBLIC_REPOS</text>
+  <text x="836" y="298" class="m ms">cluster rules     ← whitelist</text>
+  <text x="836" y="318" class="m ms" style="fill:#94a3b8">                    or */* default</text>
+
+  <rect x="816" y="342" width="328" height="56" rx="12" fill="#10261f" stroke="#34d399" stroke-width="2"/>
+  <text x="836" y="366" class="t h" fill="#d1fae5">ConfigMap <tspan class="m" font-weight="400" font-size="14">argocd-cm</tspan></text>
+  <text x="836" y="387" class="m ms">accounts.team-a-{admin,sync,view}-ci</text>
+
+  <rect x="816" y="406" width="328" height="56" rx="12" fill="#10261f" stroke="#34d399" stroke-width="2"/>
+  <text x="836" y="430" class="t h" fill="#d1fae5">Secret <tspan class="m" font-weight="400" font-size="14">argocd-secret</tspan></text>
+  <text x="836" y="451" class="m ms">bcrypt hashes of the ciPass values</text>
+
+  <rect x="800" y="490" width="360" height="160" rx="14" fill="none" stroke="#334155" stroke-width="1.5" stroke-dasharray="4 4"/>
+  <text x="816" y="512" class="m" font-size="12" fill="#64748b">cluster-scoped</text>
+
+  <rect x="816" y="524" width="328" height="56" rx="12" fill="#1f1a33" stroke="#a78bfa" stroke-width="2"/>
+  <text x="836" y="548" class="t h" fill="#ede9fe">OpenShift Groups</text>
+  <text x="836" y="569" class="m ms">team-a-{admin,sync,view}</text>
+
+  <rect x="816" y="588" width="328" height="54" rx="12" fill="#1f1a33" stroke="#a78bfa" stroke-width="2"/>
+  <text x="836" y="611" class="t h" fill="#ede9fe">ClusterRole + Binding</text>
+  <text x="836" y="631" class="t s">admins may edit their own ArgocdUser</text>
+
+  <!-- ===== Argo CD band ===== -->
+  <rect x="40" y="690" width="1120" height="96" rx="14" fill="#111827" stroke="#f97316" stroke-width="1.5"/>
+  <text x="64" y="722" class="t h" fill="#f1f5f9">Argo CD (the user-facing instance)</text>
+  <text x="64" y="748" class="t s">SSO users get the project roles through their Groups.  CI logs in as team-a-*-ci with the ciPass.</text>
+  <text x="64" y="770" class="t s">Applications in team-a may deploy only to labeled namespaces, from allowed repos, and only the whitelisted cluster resources.</text>
+
+  <!-- ===== Arrows ===== -->
+  <!-- inputs to controllers -->
+  <path class="ln" d="M340,230 L416,230" marker-end="url(#a)"/>
+  <path class="ln" d="M340,420 L416,420" marker-end="url(#a)"/>
+  <path class="ln" d="M340,560 C372,560 372,290 416,290" marker-end="url(#a)"/>
+  <!-- namespace controller fills the cache, ArgocdUser controller reads it -->
+  <path class="ln" d="M570,490 L570,526" marker-end="url(#a)"/>
+  <path class="ln" d="M420,570 C392,570 398,318 416,318" stroke-dasharray="5 4" marker-end="url(#a)"/>
+
+  <!-- controllers to managed resources -->
+  <path class="lo" d="M720,190 L812,210" marker-end="url(#ao)"/>
+  <path class="lo" d="M720,250 C770,250 770,370 812,370" marker-end="url(#ao)"/>
+  <path class="lo" d="M720,265 C780,265 780,434 812,434" marker-end="url(#ao)"/>
+  <path class="lo" d="M720,280 C790,280 780,552 812,552" marker-end="url(#ao)"/>
+  <path class="lo" d="M720,295 C800,295 790,615 812,615" marker-end="url(#ao)"/>
+  <path class="lo" d="M720,420 C770,420 770,250 812,250" marker-end="url(#ao)"/>
+
+  <!-- managed resources used by Argo CD -->
+  <path class="ln" d="M1152,300 C1180,300 1180,660 1100,686" marker-end="url(#a)"/>
+</svg>

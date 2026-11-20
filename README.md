@@ -1,5 +1,6 @@
-<h1 align="center"> <a href="https://argo-cd.readthedocs.io/en/stable/">ArgoCD</a> Complementary Operator </h1>
-<h6 align="center">Manage your ArgoCD users and projects with ease using labels!</h6>
+<p align="center">
+  <img src="docs/banner.svg" alt="ArgoCD Complementary Operator: teams, users and projects for Argo CD, from one ArgocdUser and a few namespace labels" width="100%">
+</p>
 
 <p align="center">
     <img alt="GitHub Workflow Status" src="https://img.shields.io/github/actions/workflow/status/snapp-incubator/argocd-complementary-operator/ci.yml?logo=github&style=for-the-badge">
@@ -23,6 +24,10 @@ This operator extends ArgoCD functionality by providing:
 - **Cleanup on Deletion** - Finalizer-based cleanup ensures all related resources are removed when an ArgocdUser is deleted
 
 ## Architecture
+
+<p align="center">
+  <img src="docs/architecture.svg" alt="ArgocdUser resources, namespace labels and environment variables feed two controllers, which manage the AppProject, the static CI accounts in argocd-cm and argocd-secret, OpenShift Groups and RBAC; Argo CD uses them" width="100%">
+</p>
 
 The operator consists of two controllers:
 
